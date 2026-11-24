@@ -3,20 +3,24 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests
-COPY package*.json ./
-COPY tsconfig.json ./
-COPY prisma ./prisma/
+# Ensure OpenSSL 3 is available during Prisma generation
+RUN apk add --no-cache openssl libc6-compat
 
-# Install dependencies including devDependencies for build
+# Copy root monorepo manifests and backend files
+COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/
+COPY backend/tsconfig.json ./backend/
+COPY backend/prisma ./backend/prisma/
+
+# Install all dependencies using the monorepo root package-lock.json
 RUN npm ci
 
-# Generate Prisma Client
-RUN npx prisma generate
+# Generate Prisma Client using the pinned local prisma binary
+RUN npx prisma generate --schema=backend/prisma/schema.prisma
 
-# Copy source code and build
-COPY src ./src
-RUN npm run build
+# Copy backend source and compile TypeScript
+COPY backend/src ./backend/src
+RUN npm --prefix backend run build
 
 # Stage 2: Production Runtime
 FROM node:22-alpine AS runner
@@ -26,20 +30,24 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4002
 
-# Security: Install OpenSSL for Prisma engine if required and use non-root user
+# Security & runtime: Install OpenSSL for Prisma engine on Alpine
 RUN apk add --no-cache openssl libc6-compat
 
-# Copy dependency definitions and production install
-COPY package*.json ./
-COPY prisma ./prisma/
+# Copy workspace configuration and pre-installed dependencies from builder
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/package-lock.json ./package-lock.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/backend/package.json ./backend/package.json
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/prisma ./backend/prisma
+COPY --from=builder /app/backend/src/docs ./backend/dist/docs
+COPY --from=builder /app/backend/src/docs ./backend/src/docs
 
-RUN npm ci --omit=dev && npx prisma generate
+WORKDIR /app/backend
 
-# Copy compiled artifacts from builder
-COPY --from=builder /app/dist ./dist
-COPY src/docs ./dist/docs
+# Security: Ensure files are owned by standard non-root user 'node'
+RUN chown -R node:node /app
 
-# Security: Switch to standard non-root user 'node'
 USER node
 
 EXPOSE 4002

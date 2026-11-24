@@ -40,8 +40,8 @@ services:
   # Hospital Backend API (MC-02, MC-04, MC-09)
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     image: medicore-backend:latest
     container_name: medicore-backend
     restart: unless-stopped
