@@ -1,0 +1,85 @@
+name: MediCore CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend-checks:
+    name: Backend Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: medicore_user
+          POSTGRES_PASSWORD: medicore_secure_pass_2026
+          POSTGRES_DB: medicore_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Backend Dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Generate Prisma Client
+        run: |
+          cd backend
+          npx prisma generate
+
+      - name: Apply Database Migrations
+        env:
+          DATABASE_URL: postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public
+        run: |
+          cd backend
+          npx prisma migrate deploy
+
+      - name: Seed Database
+        env:
+          DATABASE_URL: postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public
+        run: |
+          cd backend
+          npm run prisma:seed
+
+      - name: TypeScript Compile & Build
+        run: |
+          cd backend
+          npm run build
+
+      - name: Run Test Suite
+        env:
+          DATABASE_URL: postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public
+          JWT_SECRET: ci-test-secret-key-32-characters-long
+        run: |
+          cd backend
+          npm test

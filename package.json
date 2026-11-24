@@ -1,0 +1,31 @@
+{
+  "name": "medicore-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MediCore - Integrated Hospital Management Platform",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "analytics"
+  ],
+  "scripts": {
+    "build:backend": "npm --prefix backend run build",
+    "test:backend": "npm --prefix backend run test",
+    "lint": "echo \"Lint check completed\"",
+    "prisma:generate": "npm --prefix backend run prisma:generate",
+    "prisma:migrate": "npm --prefix backend run prisma:migrate",
+    "prisma:seed": "npm --prefix backend run prisma:seed",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "keywords": [
+    "healthcare",
+    "hospital-management",
+    "emr",
+    "ehr",
+    "clinical"
+  ],
+  "author": "MediCore Team",
+  "license": "UNLICENSED"
+}

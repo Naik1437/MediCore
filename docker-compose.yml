@@ -1,0 +1,111 @@
+name: medicore-platform
+
+services:
+  # Isolated Clinical Relational Database (MC-03)
+  postgres:
+    image: postgres:16-alpine
+    container_name: medicore-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-medicore_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medicore_secure_pass_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-medicore_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - medicore-internal
+    # Database kept private within internal network; not exposed to host
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medicore_user} -d ${POSTGRES_DB:-medicore_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # In-memory Caching and Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: medicore-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - medicore-internal
+    # Redis kept private within internal network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Hospital Backend API (MC-02, MC-04, MC-09)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: medicore-backend:latest
+    container_name: medicore-backend
+    restart: unless-stopped
+    ports:
+      - "4002:4002"
+    environment:
+      NODE_ENV: production
+      PORT: 4002
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-medicore_user}:${POSTGRES_PASSWORD:-medicore_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-medicore_db}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-medicore-dev-jwt-super-secret-key-change-in-prod-32bytesmin}
+      CORS_ORIGIN: http://localhost:3002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - medicore-internal
+      - medicore-public
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:4002/api/v1/health/live\", (res) => process.exit(res.statusCode === 200 ? 0 : 1))'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Web Frontend (Port 3002 - Batch 2 Target)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: medicore-frontend:latest
+    container_name: medicore-frontend
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    networks:
+      - medicore-public
+
+  # Clinical Analytics Service (Port 8002 - Batch 3 Target)
+  analytics:
+    build:
+      context: ./analytics
+      dockerfile: Dockerfile
+    image: medicore-analytics:latest
+    container_name: medicore-analytics
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    networks:
+      - medicore-internal
+      - medicore-public
+
+volumes:
+  postgres_data:
+    name: medicore_postgres_data
+  redis_data:
+    name: medicore_redis_data
+
+networks:
+  medicore-internal:
+    driver: bridge
+    internal: true
+  medicore-public:
+    driver: bridge

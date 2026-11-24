@@ -1,0 +1,220 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MediCore Hospital Management Platform API",
+    "version": "1.0.0",
+    "description": "Enterprise Healthcare & Clinical Relational API specification compliant with MC-02, MC-03, MC-04, MC-13."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4002/api/v1",
+      "description": "Local development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter short-lived access JWT token"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "UNAUTHORIZED" },
+              "message": { "type": "string", "example": "Authentication required or invalid credentials" },
+              "details": { "type": "object" }
+            }
+          },
+          "requestId": { "type": "string", "example": "b1a2c3d4-e5f6-7890-abcd-ef0123456789" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "summary": "Liveness check",
+        "tags": ["Health"],
+        "responses": {
+          "200": { "description": "Service is live" }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Readiness probe",
+        "tags": ["Health"],
+        "responses": {
+          "200": { "description": "Service and database are ready" },
+          "503": { "description": "Service not ready" }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "User registration",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "firstName", "lastName"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 8 },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "role": { "type": "string", "enum": ["PATIENT", "RECEPTIONIST", "DOCTOR", "NURSE", "LAB_TECHNICIAN", "BILLING_OFFICER", "HOSPITAL_ADMIN"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created" },
+          "409": { "description": "User already exists" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "User login",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Successful login with access and refresh tokens" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Rotate refresh token",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["refreshToken"],
+                "properties": {
+                  "refreshToken": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Rotated tokens" },
+          "401": { "description": "Invalid or expired token" }
+        }
+      }
+    },
+    "/patients": {
+      "post": {
+        "summary": "Register patient record",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Patients"],
+        "responses": { "201": { "description": "Patient created with MRN" } }
+      },
+      "get": {
+        "summary": "List patients with pagination and filtering",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Patients"],
+        "responses": { "200": { "description": "Paginated patient list" } }
+      }
+    },
+    "/appointments": {
+      "post": {
+        "summary": "Book appointment with concurrency conflict detection",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Appointments"],
+        "responses": {
+          "201": { "description": "Appointment booked" },
+          "409": { "description": "Conflict: Provider already booked during requested time" }
+        }
+      },
+      "get": {
+        "summary": "List appointments",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Appointments"],
+        "responses": { "200": { "description": "Appointments list" } }
+      }
+    },
+    "/encounters": {
+      "post": {
+        "summary": "Create clinical encounter (Clinical role only; Admin restricted)",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Clinical Encounters"],
+        "responses": { "201": { "description": "Encounter created" }, "403": { "description": "Admin or unauthorized role forbidden" } }
+      },
+      "get": {
+        "summary": "List clinical encounters (Restricted from Administrators)",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Clinical Encounters"],
+        "responses": { "200": { "description": "List of encounters" } }
+      }
+    },
+    "/lab/results": {
+      "post": {
+        "summary": "Record laboratory result with patient mismatch integrity enforcement",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Laboratory"],
+        "responses": {
+          "201": { "description": "Lab result recorded" },
+          "400": { "description": "Integrity violation: patientId does not match lab order" }
+        }
+      }
+    },
+    "/billing/invoices": {
+      "post": {
+        "summary": "Generate billing invoice",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Billing"],
+        "responses": { "201": { "description": "Invoice created" } }
+      }
+    },
+    "/consents": {
+      "post": {
+        "summary": "Record patient consent",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Consent Management"],
+        "responses": { "201": { "description": "Consent recorded" } }
+      }
+    },
+    "/audit": {
+      "get": {
+        "summary": "List system audit logs (Administrator only)",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Audit Logs"],
+        "responses": { "200": { "description": "Paginated audit logs" } }
+      }
+    }
+  }
+}

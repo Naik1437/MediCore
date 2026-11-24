@@ -1,0 +1,228 @@
+import { Router } from 'express';
+import { AuthController } from '../../controllers/authController.js';
+import {
+  PatientController,
+  AppointmentController,
+  EncounterController,
+  LabController,
+  BillingController,
+  ConsentController,
+  AdminStaffController,
+} from '../../controllers/clinicalControllers.js';
+import { HealthController } from '../../controllers/healthController.js';
+import { authenticate } from '../../middlewares/authenticate.js';
+import { requireRoles } from '../../middlewares/authorize.js';
+import { enforceClinicalAccess } from '../../middlewares/clinicalAccess.js';
+import { validate } from '../../middlewares/validate.js';
+import {
+  registerSchema,
+  loginSchema,
+  refreshTokenSchema,
+  createPatientSchema,
+  createDepartmentSchema,
+  createScheduleSchema,
+  createAppointmentSchema,
+  createEncounterSchema,
+  createDiagnosisSchema,
+  createMedicationOrderSchema,
+  createLabOrderSchema,
+  recordLabResultSchema,
+  createInvoiceSchema,
+  createConsentSchema,
+} from '../../validators/schemas.js';
+import { UserRole } from '../../constants/roles.js';
+
+const router = Router();
+
+// Health endpoints
+router.get('/health/live', HealthController.live);
+router.get('/health/ready', HealthController.ready);
+
+// Auth endpoints
+router.post('/auth/register', validate(registerSchema), AuthController.register);
+router.post('/auth/login', validate(loginSchema), AuthController.login);
+router.post('/auth/refresh', validate(refreshTokenSchema), AuthController.refreshToken);
+router.post('/auth/logout', AuthController.logout);
+
+// Patients endpoints
+router.post(
+  '/patients',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.HOSPITAL_ADMIN, UserRole.DOCTOR),
+  validate(createPatientSchema),
+  PatientController.create
+);
+router.get(
+  '/patients',
+  authenticate,
+  requireRoles(UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN),
+  PatientController.list
+);
+router.get(
+  '/patients/:id',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN),
+  PatientController.getById
+);
+
+// Departments & Staff endpoints
+router.get('/departments', authenticate, AdminStaffController.listDepartments);
+router.post(
+  '/departments',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN),
+  validate(createDepartmentSchema),
+  AdminStaffController.createDepartment
+);
+router.get(
+  '/staff',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN, UserRole.RECEPTIONIST),
+  AdminStaffController.listStaff
+);
+
+// Providers & Schedules
+router.get('/providers', authenticate, AdminStaffController.listProviders);
+router.post(
+  '/providers/schedules',
+  authenticate,
+  requireRoles(UserRole.DOCTOR, UserRole.HOSPITAL_ADMIN),
+  validate(createScheduleSchema),
+  AdminStaffController.createSchedule
+);
+
+// Appointments
+router.post(
+  '/appointments',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE),
+  validate(createAppointmentSchema),
+  AppointmentController.book
+);
+router.get(
+  '/appointments',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE),
+  AppointmentController.list
+);
+router.post(
+  '/appointments/:id/cancel',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE),
+  AppointmentController.cancel
+);
+
+// Encounters & Clinical Data
+// Enforce clinical access rule: HOSPITAL_ADMIN explicitly restricted!
+router.post(
+  '/encounters',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE),
+  validate(createEncounterSchema),
+  EncounterController.create
+);
+router.get(
+  '/encounters',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.PATIENT),
+  EncounterController.list
+);
+router.post(
+  '/encounters/:id/diagnoses',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR),
+  validate(createDiagnosisSchema),
+  EncounterController.addDiagnosis
+);
+router.post(
+  '/encounters/:id/prescriptions',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR),
+  validate(createMedicationOrderSchema),
+  EncounterController.addPrescription
+);
+
+// Laboratory Orders & Results
+router.post(
+  '/lab/orders',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE),
+  validate(createLabOrderSchema),
+  LabController.createOrder
+);
+router.get(
+  '/lab/orders',
+  authenticate,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.LAB_TECHNICIAN, UserRole.PATIENT),
+  LabController.listOrders
+);
+router.post(
+  '/lab/results',
+  authenticate,
+  requireRoles(UserRole.LAB_TECHNICIAN, UserRole.DOCTOR),
+  validate(recordLabResultSchema),
+  LabController.recordResult
+);
+router.get(
+  '/lab/results',
+  authenticate,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.LAB_TECHNICIAN, UserRole.PATIENT),
+  LabController.listResults
+);
+
+// Billing & Invoices
+router.post(
+  '/billing/invoices',
+  authenticate,
+  requireRoles(UserRole.BILLING_OFFICER, UserRole.HOSPITAL_ADMIN),
+  validate(createInvoiceSchema),
+  BillingController.createInvoice
+);
+router.get(
+  '/billing/invoices',
+  authenticate,
+  requireRoles(UserRole.BILLING_OFFICER, UserRole.HOSPITAL_ADMIN, UserRole.PATIENT),
+  BillingController.listInvoices
+);
+router.post(
+  '/billing/invoices/:id/pay',
+  authenticate,
+  requireRoles(UserRole.BILLING_OFFICER, UserRole.PATIENT),
+  BillingController.pay
+);
+
+// Consents
+router.post(
+  '/consents',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.DOCTOR, UserRole.NURSE),
+  validate(createConsentSchema),
+  ConsentController.recordConsent
+);
+router.post(
+  '/consents/:id/revoke',
+  authenticate,
+  requireRoles(UserRole.PATIENT),
+  ConsentController.revokeConsent
+);
+router.get(
+  '/consents/patient/:patientId',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN),
+  ConsentController.getByPatient
+);
+
+// Audit Records (Admin only)
+router.get(
+  '/audit',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN),
+  AdminStaffController.listAuditLogs
+);
+
+export default router;
