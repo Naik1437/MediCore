@@ -174,4 +174,42 @@ export class LabService {
 
     return formatPaginatedResponse(results, total, pagination);
   }
+
+  static async updateOrderStatus(id: string, newStatus: string, actorUserId?: string) {
+    const order = await prisma.labOrder.findUnique({ where: { id } });
+    if (!order) {
+      throw new NotFoundError(`Lab order ${id} not found`);
+    }
+
+    const current = order.status;
+    if (current === 'COMPLETED' || current === 'CANCELLED') {
+      throw new BadRequestError(`Cannot transition lab order from terminal status '${current}'`);
+    }
+
+    const validNext: Record<string, string[]> = {
+      ORDERED: ['SAMPLE_COLLECTED', 'CANCELLED'],
+      SAMPLE_COLLECTED: ['IN_PROGRESS', 'CANCELLED'],
+      IN_PROGRESS: ['COMPLETED', 'CANCELLED'],
+    };
+
+    if (!validNext[current] || !validNext[current].includes(newStatus)) {
+      throw new BadRequestError(`Invalid lab order status transition from '${current}' to '${newStatus}'`);
+    }
+
+    const updated = await prisma.labOrder.update({
+      where: { id },
+      data: { status: newStatus as any },
+    });
+
+    await recordAudit({
+      userId: actorUserId,
+      action: 'LAB_ORDER_STATUS_TRANSITION',
+      entity: 'LabOrder',
+      entityId: id,
+      status: 'SUCCESS',
+      details: { previousStatus: current, newStatus },
+    });
+
+    return updated;
+  }
 }

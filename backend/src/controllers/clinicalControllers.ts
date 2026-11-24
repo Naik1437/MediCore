@@ -6,6 +6,8 @@ import { LabService } from '../services/labService.js';
 import { BillingService } from '../services/billingService.js';
 import { ConsentService } from '../services/consentService.js';
 import { DepartmentService, StaffService, ProviderService } from '../services/adminStaffService.js';
+import { WaitingListService } from '../services/waitingListService.js';
+import { AdminSummaryService } from '../services/adminSummaryService.js';
 import { prisma } from '../prisma.js';
 import { parsePagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { ForbiddenError } from '../utils/errors.js';
@@ -81,6 +83,16 @@ export class AppointmentController {
       next(error);
     }
   }
+
+  static async getAvailability(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dateStr = (req.query.date as string) || new Date().toISOString().split('T')[0];
+      const availability = await AppointmentService.getProviderAvailability(req.params.id, dateStr);
+      res.status(200).json({ success: true, data: availability });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export class EncounterController {
@@ -126,6 +138,46 @@ export class EncounterController {
       next(error);
     }
   }
+
+  static async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await EncounterService.updateStatus(
+        req.params.id,
+        req.body.status,
+        req.user?.userId,
+        req.body.notes
+      );
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateMedicationStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await EncounterService.updateMedicationOrderStatus(
+        req.params.id,
+        req.body.status,
+        req.user?.userId
+      );
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getPatientPrescriptions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const targetPatientId = req.params.patientId || req.user?.patientId;
+      if (req.user?.role === UserRole.PATIENT && req.user.patientId !== targetPatientId) {
+        throw new ForbiddenError('You can only view your own prescriptions');
+      }
+      const prescriptions = await EncounterService.getPatientPrescriptions(targetPatientId as string);
+      res.status(200).json({ success: true, data: prescriptions });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export class LabController {
@@ -166,6 +218,19 @@ export class LabController {
       const requestingPatientId = req.user?.role === UserRole.PATIENT ? req.user.patientId : undefined;
       const result = await LabService.getLabResults(req.query, requestingPatientId);
       res.status(200).json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateOrderStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await LabService.updateOrderStatus(
+        req.params.id,
+        req.body.status,
+        req.user?.userId
+      );
+      res.status(200).json({ success: true, data: updated });
     } catch (error) {
       next(error);
     }
@@ -304,6 +369,49 @@ export class AdminStaffController {
         success: true,
         ...formatPaginatedResponse(records, total, pagination),
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getOperationalSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const summary = await AdminSummaryService.getOperationalSummary(req.user?.userId);
+      res.status(200).json({ success: true, data: summary });
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export class WaitingListController {
+  static async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const item = await WaitingListService.create(req.body, req.user?.userId);
+      res.status(201).json({ success: true, data: item });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async list(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await WaitingListService.list(req.query);
+      res.status(200).json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await WaitingListService.updateStatus(
+        req.params.id,
+        req.body.status,
+        req.user?.userId,
+        req.body.notes
+      );
+      res.status(200).json({ success: true, data: updated });
     } catch (error) {
       next(error);
     }

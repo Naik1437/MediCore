@@ -8,6 +8,7 @@ import {
   BillingController,
   ConsentController,
   AdminStaffController,
+  WaitingListController,
 } from '../../controllers/clinicalControllers.js';
 import { HealthController } from '../../controllers/healthController.js';
 import { authenticate } from '../../middlewares/authenticate.js';
@@ -29,6 +30,11 @@ import {
   recordLabResultSchema,
   createInvoiceSchema,
   createConsentSchema,
+  updateEncounterStatusSchema,
+  updateMedicationOrderStatusSchema,
+  updateLabOrderStatusSchema,
+  createWaitingListItemSchema,
+  updateWaitingListStatusSchema,
 } from '../../validators/schemas.js';
 import { UserRole } from '../../constants/roles.js';
 
@@ -43,6 +49,7 @@ router.post('/auth/register', validate(registerSchema), AuthController.register)
 router.post('/auth/login', validate(loginSchema), AuthController.login);
 router.post('/auth/refresh', validate(refreshTokenSchema), AuthController.refreshToken);
 router.post('/auth/logout', AuthController.logout);
+router.get('/auth/me', authenticate, AuthController.me);
 
 // Patients endpoints
 router.post(
@@ -83,6 +90,7 @@ router.get(
 
 // Providers & Schedules
 router.get('/providers', authenticate, AdminStaffController.listProviders);
+router.get('/providers/:id/availability', authenticate, AppointmentController.getAvailability);
 router.post(
   '/providers/schedules',
   authenticate,
@@ -145,6 +153,27 @@ router.post(
   validate(createMedicationOrderSchema),
   EncounterController.addPrescription
 );
+router.patch(
+  '/encounters/:id/status',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE),
+  validate(updateEncounterStatusSchema),
+  EncounterController.updateStatus
+);
+router.patch(
+  '/prescriptions/:id/status',
+  authenticate,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.BILLING_OFFICER),
+  validate(updateMedicationOrderStatusSchema),
+  EncounterController.updateMedicationStatus
+);
+router.get(
+  '/prescriptions/patient/:patientId',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.DOCTOR, UserRole.NURSE),
+  EncounterController.getPatientPrescriptions
+);
 
 // Laboratory Orders & Results
 router.post(
@@ -160,6 +189,13 @@ router.get(
   authenticate,
   requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.LAB_TECHNICIAN, UserRole.PATIENT),
   LabController.listOrders
+);
+router.patch(
+  '/lab/orders/:id/status',
+  authenticate,
+  requireRoles(UserRole.LAB_TECHNICIAN, UserRole.DOCTOR, UserRole.NURSE),
+  validate(updateLabOrderStatusSchema),
+  LabController.updateOrderStatus
 );
 router.post(
   '/lab/results',
@@ -223,6 +259,36 @@ router.get(
   authenticate,
   requireRoles(UserRole.HOSPITAL_ADMIN),
   AdminStaffController.listAuditLogs
+);
+
+// Admin Operational Metrics & Summaries (Admin only, Zero-PHI aggregation)
+router.get(
+  '/admin/summary',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN),
+  AdminStaffController.getOperationalSummary
+);
+
+// Waiting List Workflows (MC-07)
+router.post(
+  '/waiting-list',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN),
+  validate(createWaitingListItemSchema),
+  WaitingListController.create
+);
+router.get(
+  '/waiting-list',
+  authenticate,
+  requireRoles(UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN),
+  WaitingListController.list
+);
+router.patch(
+  '/waiting-list/:id/status',
+  authenticate,
+  requireRoles(UserRole.RECEPTIONIST, UserRole.HOSPITAL_ADMIN),
+  validate(updateWaitingListStatusSchema),
+  WaitingListController.updateStatus
 );
 
 export default router;

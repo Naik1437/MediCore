@@ -156,3 +156,42 @@ export const createConsentSchema = z.object({
     notes: z.string().optional(),
   }),
 });
+
+export const updateEncounterStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+    notes: z.string().optional(),
+  }),
+});
+
+export const updateMedicationOrderStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['ACTIVE', 'COMPLETED', 'CANCELLED', 'DISPENSED']),
+  }),
+});
+
+export const updateLabOrderStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['ORDERED', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  }),
+});
+
+export const createWaitingListItemSchema = z.object({
+  body: z.object({
+    patientId: z.string().uuid(),
+    departmentId: z.string().uuid(),
+    providerId: z.string().uuid().optional(),
+    priority: z.enum(['LOW', 'NORMAL', 'URGENT']).default('NORMAL'),
+    notes: z.string().optional(),
+    requestedDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: 'Invalid requested date format',
+    }),
+  }),
+});
+
+export const updateWaitingListStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['WAITING', 'SCHEDULED', 'CANCELLED', 'EXPIRED']),
+    notes: z.string().optional(),
+  }),
+});

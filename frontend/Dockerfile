@@ -1,11 +1,51 @@
-FROM node:22-alpine
+# Multi-stage production build for Next.js App Router (Port 3002)
+# Monorepo build context: context is workspace root (.)
+
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies required for Alpine
+RUN apk add --no-cache libc6-compat
+
+# Copy root lockfile and workspace package manifests
+COPY package.json package-lock.json ./
+COPY frontend/package.json ./frontend/
+COPY backend/package.json ./backend/
+
+# Install dependencies using clean reproducible install
+RUN npm ci
+
+# Copy frontend source and configuration
+COPY frontend ./frontend
+
+# Build Next.js application
+WORKDIR /app/frontend
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# Runner stage: minimal Alpine non-root image
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3002
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Minimal non-root placeholder container for frontend
-USER node
+# Non-root user setup
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy static assets and standalone build output
+COPY --from=builder /app/frontend/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/package.json ./package.json
+
+USER nextjs
+
 EXPOSE 3002
 
-CMD ["node", "-e", "const http = require('http'); http.createServer((_, res) => { res.writeHead(200, {'Content-Type': 'application/json'}); res.end(JSON.stringify({ service: 'frontend-stub', batch: 'Batch 2' })); }).listen(3002, () => console.log('Frontend placeholder running on 3002'));"]
+CMD ["npm", "run", "start"]

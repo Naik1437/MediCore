@@ -157,4 +157,87 @@ export class AppointmentService {
 
     return updated;
   }
+
+  /**
+   * Calculates time-zone aware provider availability based on ProviderSchedule and active bookings.
+   */
+  static async getProviderAvailability(providerId: string, dateStr: string) {
+    const targetDate = new Date(dateStr);
+    if (isNaN(targetDate.getTime())) {
+      throw new BadRequestError('Invalid date format. Use YYYY-MM-DD');
+    }
+
+    const dayOfWeek = targetDate.getUTCDay();
+
+    const schedules = await prisma.providerSchedule.findMany({
+      where: {
+        providerId,
+        dayOfWeek,
+        isActive: true,
+      },
+    });
+
+    if (schedules.length === 0) {
+      return {
+        date: dateStr,
+        providerId,
+        slots: [],
+      };
+    }
+
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
+
+    const existingAppointments = await prisma.appointment.findMany({
+      where: {
+        providerId,
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        scheduledStart: { lte: dayEnd },
+        scheduledEnd: { gte: dayStart },
+      },
+      select: {
+        id: true,
+        scheduledStart: true,
+        scheduledEnd: true,
+      },
+    });
+
+    const slots: Array<{ start: string; end: string; available: boolean }> = [];
+
+    for (const sched of schedules) {
+      const [startHour, startMin] = sched.startTime.split(':').map(Number);
+      const [endHour, endMin] = sched.endTime.split(':').map(Number);
+
+      const slotDuration = sched.slotDurationMinutes || 30;
+
+      let current = new Date(dayStart);
+      current.setUTCHours(startHour, startMin, 0, 0);
+
+      const schedEnd = new Date(dayStart);
+      schedEnd.setUTCHours(endHour, endMin, 0, 0);
+
+      while (current.getTime() + slotDuration * 60000 <= schedEnd.getTime()) {
+        const slotStart = new Date(current);
+        const slotEnd = new Date(current.getTime() + slotDuration * 60000);
+
+        const isBooked = existingAppointments.some((appt) => {
+          return slotStart < appt.scheduledEnd && slotEnd > appt.scheduledStart;
+        });
+
+        slots.push({
+          start: slotStart.toISOString(),
+          end: slotEnd.toISOString(),
+          available: !isBooked,
+        });
+
+        current = slotEnd;
+      }
+    }
+
+    return {
+      date: dateStr,
+      providerId,
+      slots,
+    };
+  }
 }

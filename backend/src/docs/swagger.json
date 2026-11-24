@@ -112,6 +112,14 @@
         }
       }
     },
+    "/auth/me": {
+      "get": {
+        "summary": "Get authenticated user profile and roles",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Authentication"],
+        "responses": { "200": { "description": "Current user profile" } }
+      }
+    },
     "/auth/refresh": {
       "post": {
         "summary": "Rotate refresh token",
@@ -148,6 +156,18 @@
         "security": [{ "BearerAuth": [] }],
         "tags": ["Patients"],
         "responses": { "200": { "description": "Paginated patient list" } }
+      }
+    },
+    "/providers/{id}/availability": {
+      "get": {
+        "summary": "Get time-zone aware provider availability slots for a date",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Appointments"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "date", "in": "query", "required": true, "schema": { "type": "string", "example": "2026-12-01" } }
+        ],
+        "responses": { "200": { "description": "Available time slots" } }
       }
     },
     "/appointments": {
@@ -206,6 +226,28 @@
         "security": [{ "BearerAuth": [] }],
         "tags": ["Consent Management"],
         "responses": { "201": { "description": "Consent recorded" } }
+      }
+    },
+    "/waiting-list": {
+      "post": {
+        "summary": "Add patient to waiting list",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Waiting List"],
+        "responses": { "201": { "description": "Patient added to waiting list" } }
+      },
+      "get": {
+        "summary": "List waiting list entries",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Waiting List"],
+        "responses": { "200": { "description": "Waiting list items" } }
+      }
+    },
+    "/admin/summary": {
+      "get": {
+        "summary": "Get high-level operational statistics (Administrator only, zero-PHI)",
+        "security": [{ "BearerAuth": [] }],
+        "tags": ["Audit Logs"],
+        "responses": { "200": { "description": "Operational counts" } }
       }
     },
     "/audit": {

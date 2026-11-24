@@ -4,11 +4,14 @@ import { AuthService } from '../services/authService.js';
 export class AuthController {
   static async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await AuthService.register({
-        ...req.body,
-        clientIp: req.ip,
-        userAgent: req.get('user-agent'),
-      });
+      const user = await AuthService.register(
+        {
+          ...req.body,
+          clientIp: req.ip,
+          userAgent: req.get('user-agent'),
+        },
+        req.user?.role
+      );
       res.status(201).json({
         success: true,
         data: user,
@@ -57,6 +60,18 @@ export class AuthController {
       res.status(200).json({
         success: true,
         data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async me(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await AuthService.getMe(req.user!.userId);
+      res.status(200).json({
+        success: true,
+        data: user,
       });
     } catch (error) {
       next(error);

@@ -1,0 +1,9 @@
+{
+  "name": "medicore-analytics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MediCore - Clinical Analytics Service (Batch 3)",
+  "scripts": {
+    "start": "node -e \"console.log('Analytics placeholder')\""
+  }
+}

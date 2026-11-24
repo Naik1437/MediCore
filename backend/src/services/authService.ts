@@ -12,6 +12,7 @@ import {
   UnauthorizedError,
   ConflictError,
   NotFoundError,
+  ForbiddenError,
 } from '../utils/errors.js';
 import { UserRole } from '../constants/roles.js';
 import { recordAudit } from './auditService.js';
@@ -35,7 +36,13 @@ export interface LoginDTO {
 }
 
 export class AuthService {
-  static async register(dto: RegisterDTO) {
+  static async register(dto: RegisterDTO, actorRole?: UserRole) {
+    // Security MC-04: Public registration can only create PATIENT role.
+    // Privileged clinical or administrative roles require authenticated HOSPITAL_ADMIN.
+    if (dto.role && dto.role !== UserRole.PATIENT && actorRole !== UserRole.HOSPITAL_ADMIN) {
+      throw new ForbiddenError('Public registration is restricted to patient accounts only');
+    }
+
     const existing = await prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
@@ -285,5 +292,35 @@ export class AuthService {
     }
 
     return { message: 'Logged out successfully' };
+  }
+
+  static async getMe(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        patientProfile: {
+          select: { id: true, mrn: true, bloodGroup: true, phone: true },
+        },
+        providerProfile: {
+          select: { id: true, specialization: true, licenseNumber: true, departmentId: true },
+        },
+        staffProfile: {
+          select: { id: true, employeeId: true, jobTitle: true, departmentId: true },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User profile not found');
+    }
+
+    return user;
   }
 }
