@@ -11,6 +11,7 @@ import {
   WaitingListController,
 } from '../../controllers/clinicalControllers.js';
 import { HealthController } from '../../controllers/healthController.js';
+import { AnalyticsController } from '../../controllers/analyticsController.js';
 import { authenticate } from '../../middlewares/authenticate.js';
 import { requireRoles } from '../../middlewares/authorize.js';
 import { enforceClinicalAccess } from '../../middlewares/clinicalAccess.js';
@@ -289,6 +290,32 @@ router.patch(
   requireRoles(UserRole.RECEPTIONIST, UserRole.HOSPITAL_ADMIN),
   validate(updateWaitingListStatusSchema),
   WaitingListController.updateStatus
+);
+
+// Clinical Analytics & Intelligence (MC-06 - Port 8002 integration)
+router.get(
+  '/analytics/utilization',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN, UserRole.DOCTOR, UserRole.RECEPTIONIST),
+  AnalyticsController.getUtilization
+);
+router.get(
+  '/analytics/wait-times',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.RECEPTIONIST),
+  AnalyticsController.getWaitTimes
+);
+router.get(
+  '/analytics/lab-turnaround',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN, UserRole.LAB_TECHNICIAN, UserRole.DOCTOR),
+  AnalyticsController.getLabTurnaround
+);
+router.get(
+  '/analytics/population-health',
+  authenticate,
+  requireRoles(UserRole.HOSPITAL_ADMIN, UserRole.DOCTOR),
+  AnalyticsController.getPopulationHealth
 );
 
 export default router;

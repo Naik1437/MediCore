@@ -42,3 +42,8 @@ backend/prisma/*.db
 backend/prisma/*.db-journal
 
 .next/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

@@ -1,11 +1,30 @@
-FROM node:22-alpine
+# Stage 1: Build & Python environment setup
+FROM python:3.11-alpine AS base
 
 WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=8002
 
-# Minimal non-root placeholder container for analytics
-USER node
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8002
+
+# Install system dependencies
+RUN apk add --no-cache curl libc6-compat
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Install Python requirements
+COPY analytics/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy analytics source code
+COPY analytics ./analytics
+
+USER appuser
+
 EXPOSE 8002
 
-CMD ["node", "-e", "const http = require('http'); http.createServer((_, res) => { res.writeHead(200, {'Content-Type': 'application/json'}); res.end(JSON.stringify({ service: 'analytics-stub', batch: 'Batch 3' })); }).listen(8002, () => console.log('Analytics placeholder running on 8002'));"]
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+  CMD curl -f http://localhost:8002/health/live || exit 1
+
+CMD ["uvicorn", "analytics.main:app", "--host", "0.0.0.0", "--port", "8002"]

@@ -257,6 +257,38 @@
         "tags": ["Audit Logs"],
         "responses": { "200": { "description": "Paginated audit logs" } }
       }
+    },
+    "/analytics/utilization": {
+      "get": {
+        "summary": "Appointment capacity & scheduling utilization metrics (MC-06)",
+        "tags": ["Analytics & Intelligence"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Utilization rates and provider breakdown" } }
+      }
+    },
+    "/analytics/wait-times": {
+      "get": {
+        "summary": "Departmental patient wait times and percentiles (MC-06)",
+        "tags": ["Analytics & Intelligence"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Average, median, and P95 wait times" } }
+      }
+    },
+    "/analytics/lab-turnaround": {
+      "get": {
+        "summary": "Diagnostic laboratory turnaround times and SLA compliance (MC-06)",
+        "tags": ["Analytics & Intelligence"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Average turnaround times per test type" } }
+      }
+    },
+    "/analytics/population-health": {
+      "get": {
+        "summary": "Demographic and aggregate health prevalence distribution (MC-06)",
+        "tags": ["Analytics & Intelligence"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Age, gender, and ICD-10 aggregate distributions" } }
+      }
     }
   }
 }
