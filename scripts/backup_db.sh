@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 # MC-14: Database Backup and Audit Retention Script
 # Strict zero-cost native PostgreSQL utility execution
 #
@@ -7,14 +8,28 @@
 # Run: crontab -e
 # Add: 0 2 * * * /bin/bash /opt/medicore/scripts/backup_db.sh >> /var/log/medicore_backup.log 2>&1
 
+CONTAINER_NAME="${POSTGRES_CONTAINER:-medicore-postgres}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="${BACKUP_DIR}/medicore_backup_${TIMESTAMP}.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
 
+if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: docker is required." >&2
+    exit 1
+fi
+if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || true)" != "true" ]]; then
+    echo "ERROR: PostgreSQL container '$CONTAINER_NAME' is not running." >&2
+    exit 1
+fi
+
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Starting MediCore PostgreSQL backup..."
-docker exec medicore-postgres pg_dump -U "${POSTGRES_USER:-medicore_user}" -d "${POSTGRES_DB:-medicore_db}" | gzip > "$BACKUP_FILE"
+if ! docker exec "$CONTAINER_NAME" pg_dump -U "${POSTGRES_USER:-medicore_user}" -d "${POSTGRES_DB:-medicore_db}" | gzip > "$BACKUP_FILE"; then
+    rm -f "$BACKUP_FILE"
+    echo "ERROR: pg_dump failed; incomplete backup removed." >&2
+    exit 1
+fi
 
 if [ $? -eq 0 ] && [ -s "$BACKUP_FILE" ]; then
     FILE_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)

@@ -55,7 +55,7 @@ export const createDepartmentSchema = z.object({
 
 export const createScheduleSchema = z.object({
   body: z.object({
-    providerId: z.string().uuid(),
+    providerId: z.string().guid(),
     dayOfWeek: z.number().int().min(0).max(6),
     startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Format must be HH:MM'),
     endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Format must be HH:MM'),
@@ -65,9 +65,9 @@ export const createScheduleSchema = z.object({
 
 export const createAppointmentSchema = z.object({
   body: z.object({
-    patientId: z.string().uuid(),
-    providerId: z.string().uuid(),
-    departmentId: z.string().uuid(),
+    patientId: z.string().guid(),
+    providerId: z.string().guid(),
+    departmentId: z.string().guid(),
     scheduledStart: z.string().refine((val) => !isNaN(Date.parse(val)), {
       message: 'Invalid start date format',
     }),
@@ -80,9 +80,9 @@ export const createAppointmentSchema = z.object({
 
 export const createEncounterSchema = z.object({
   body: z.object({
-    patientId: z.string().uuid(),
-    providerId: z.string().uuid(),
-    appointmentId: z.string().uuid().optional(),
+    patientId: z.string().guid(),
+    providerId: z.string().guid(),
+    appointmentId: z.string().guid().optional(),
     encounterType: z.enum(['OUTPATIENT', 'INPATIENT', 'EMERGENCY']).default('OUTPATIENT'),
     notes: z.string().optional(),
   }),
@@ -90,9 +90,9 @@ export const createEncounterSchema = z.object({
 
 export const createDiagnosisSchema = z.object({
   body: z.object({
-    patientId: z.string().uuid(),
-    providerId: z.string().uuid(),
-    encounterId: z.string().uuid().optional(),
+    patientId: z.string().guid(),
+    providerId: z.string().guid(),
+    encounterId: z.string().guid().optional(),
     icdCode: z.string().min(2, 'ICD-10 code is required'),
     description: z.string().min(3, 'Diagnosis description is required'),
     type: z.enum(['PRIMARY', 'SECONDARY']).default('PRIMARY'),
@@ -101,9 +101,9 @@ export const createDiagnosisSchema = z.object({
 
 export const createMedicationOrderSchema = z.object({
   body: z.object({
-    encounterId: z.string().uuid().optional(),
-    patientId: z.string().uuid(),
-    providerId: z.string().uuid(),
+    encounterId: z.string().guid().optional(),
+    patientId: z.string().guid(),
+    providerId: z.string().guid(),
     medicationName: z.string().min(2, 'Medication name is required'),
     dosage: z.string().min(1, 'Dosage is required'),
     frequency: z.string().min(1, 'Frequency is required'),
@@ -114,10 +114,10 @@ export const createMedicationOrderSchema = z.object({
 
 export const createLabOrderSchema = z.object({
   body: z.object({
-    encounterId: z.string().uuid(),
-    patientId: z.string().uuid(),
-    providerId: z.string().uuid(),
-    departmentId: z.string().uuid(),
+    encounterId: z.string().guid(),
+    patientId: z.string().guid(),
+    providerId: z.string().guid(),
+    departmentId: z.string().guid(),
     testType: z.string().min(2, 'Test type is required'),
     priority: z.enum(['STAT', 'URGENT', 'ROUTINE']).default('ROUTINE'),
     clinicalNotes: z.string().optional(),
@@ -126,9 +126,9 @@ export const createLabOrderSchema = z.object({
 
 export const recordLabResultSchema = z.object({
   body: z.object({
-    labOrderId: z.string().uuid(),
-    patientId: z.string().uuid(),
-    resultValues: z.record(z.any()),
+    labOrderId: z.string().guid(),
+    patientId: z.string().guid(),
+    resultValues: z.record(z.string(), z.any()),
     referenceRange: z.string().optional(),
     interpretation: z.string().optional(),
     status: z.enum(['PRELIMINARY', 'FINAL', 'AMENDED']).default('FINAL'),
@@ -137,8 +137,8 @@ export const recordLabResultSchema = z.object({
 
 export const createInvoiceSchema = z.object({
   body: z.object({
-    patientId: z.string().uuid(),
-    encounterId: z.string().uuid().optional(),
+    patientId: z.string().guid(),
+    encounterId: z.string().guid().optional(),
     amount: z.number().positive(),
     tax: z.number().min(0).default(0),
     discount: z.number().min(0).default(0),
@@ -148,8 +148,8 @@ export const createInvoiceSchema = z.object({
 
 export const createConsentSchema = z.object({
   body: z.object({
-    patientId: z.string().uuid(),
-    providerId: z.string().uuid().optional(),
+    patientId: z.string().guid(),
+    providerId: z.string().guid().optional(),
     consentType: z.enum(['DATA_SHARING', 'TREATMENT', 'RESEARCH', 'BILLING']).default('DATA_SHARING'),
     status: z.enum(['GRANTED', 'REVOKED']).default('GRANTED'),
     expiresAt: z.string().optional(),
@@ -178,9 +178,9 @@ export const updateLabOrderStatusSchema = z.object({
 
 export const createWaitingListItemSchema = z.object({
   body: z.object({
-    patientId: z.string().uuid(),
-    departmentId: z.string().uuid(),
-    providerId: z.string().uuid().optional(),
+    patientId: z.string().guid(),
+    departmentId: z.string().guid(),
+    providerId: z.string().guid().optional(),
     priority: z.enum(['LOW', 'NORMAL', 'URGENT']).default('NORMAL'),
     notes: z.string().optional(),
     requestedDate: z.string().refine((val) => !isNaN(Date.parse(val)), {

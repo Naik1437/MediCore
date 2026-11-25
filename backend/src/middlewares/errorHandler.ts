@@ -23,7 +23,7 @@ export function errorHandler(
     statusCode = 422;
     code = 'VALIDATION_ERROR';
     message = 'Request validation failed';
-    details = err.errors;
+    details = err.issues ?? err.errors;
   } else if (err?.name === 'JsonWebTokenError' || err?.name === 'TokenExpiredError') {
     statusCode = 401;
     code = 'INVALID_TOKEN';
