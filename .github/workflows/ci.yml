@@ -18,14 +18,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: postgresql://ci_fake_user:ci_fake_password_schema_generation_only@localhost:5432/ci_fake_db?schema=public
+        run: npm --prefix backend run prisma:generate
+
       - name: Run Dependency Audit
-        run: npm audit --audit-level=critical || true
+        run: npm audit --audit-level=critical
 
       - name: Static Code Analysis & Monorepo Typecheck
         run: |
