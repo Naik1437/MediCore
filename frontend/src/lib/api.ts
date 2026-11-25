@@ -1,4 +1,18 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4002/api/v1';
+function getApiBaseUrl(): string {
+  // If explicitly configured with a non-localhost absolute URL or relative path
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+  if (configured && !configured.includes('localhost:4002')) {
+    return configured;
+  }
+  // When executing in a browser:
+  if (typeof window !== 'undefined') {
+    // If accessed through gateway (port 8088), https tunnel, or custom domain, route via same origin /api/v1
+    if (window.location.port === '8088' || window.location.protocol === 'https:' || window.location.hostname.includes('trycloudflare.com')) {
+      return '/api/v1';
+    }
+  }
+  return configured || 'http://localhost:4002/api/v1';
+}
 
 export class ApiError extends Error {
   public status: number;
@@ -15,6 +29,7 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const baseUrl = getApiBaseUrl();
   let token: string | null = null;
   if (typeof window !== 'undefined') {
     token = localStorage.getItem('medicore_access_token');
@@ -26,7 +41,8 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const url = `${API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${baseUrl}${cleanEndpoint}`;
 
   const response = await fetch(url, {
     ...options,
@@ -38,7 +54,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     const refreshToken = localStorage.getItem('medicore_refresh_token');
     if (refreshToken && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
       try {
-        const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+        const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
