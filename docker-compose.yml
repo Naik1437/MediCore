@@ -122,6 +122,30 @@ services:
       timeout: 5s
       retries: 3
 
+  # Dedicated Asynchronous Notification Worker Service (MC-09)
+  notification-worker:
+    build:
+      context: .
+      dockerfile: analytics/Dockerfile
+    image: medicore-notification-worker:latest
+    container_name: medicore-notification-worker
+    restart: unless-stopped
+    command: ["python", "-m", "analytics.worker_daemon"]
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANALYTICS_SHARED_SECRET: ${ANALYTICS_SHARED_SECRET:-medicore-internal-analytics-key-2026}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - medicore-internal
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import time, os; t=float(open(\"/tmp/worker_healthy\").read().strip()); exit(0 if time.time()-t < 30 else 1)'"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
 volumes:
   postgres_data:
     name: medicore_postgres_data

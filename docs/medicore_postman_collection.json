@@ -1,0 +1,125 @@
+{
+  "info": {
+    "_postman_id": "medicore-postman-v2-collection",
+    "name": "MediCore Hospital Management Platform API (MC-13)",
+    "description": "Comprehensive Postman collection for MediCore Healthcare Platform covering Authentication, Clinical Encounters, Appointments, Diagnostics, Billing, and Analytics.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4002/api/v1" },
+    { "key": "analyticsUrl", "value": "http://localhost:8002/api/v1" },
+    { "key": "accessToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login (Doctor)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"doctor@medicore.local\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Get Current User Profile (/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clinical Workflows",
+      "item": [
+        {
+          "name": "List Encounters",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/encounters", "host": ["{{baseUrl}}"], "path": ["encounters"] }
+          }
+        },
+        {
+          "name": "Update Encounter Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"notes\": \"Patient examined, vitals stable, prescription issued.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/encounters/:id/status", "host": ["{{baseUrl}}"], "path": ["encounters", ":id", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Appointments & Scheduling",
+      "item": [
+        {
+          "name": "Check Provider Availability",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/providers/:providerId/availability?date=2026-12-01", "host": ["{{baseUrl}}"], "path": ["providers", ":providerId", "availability"] }
+          }
+        },
+        {
+          "name": "Book Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"providerId\": \"doc-uuid\",\n  \"startTime\": \"2026-12-01T09:00:00Z\",\n  \"endTime\": \"2026-12-01T09:30:00Z\",\n  \"type\": \"CONSULTATION\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clinical Analytics (MC-06)",
+      "item": [
+        {
+          "name": "Appointment Utilization",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/analytics/utilization", "host": ["{{baseUrl}}"], "path": ["analytics", "utilization"] }
+          }
+        },
+        {
+          "name": "Wait Times Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/analytics/wait-times", "host": ["{{baseUrl}}"], "path": ["analytics", "wait-times"] }
+          }
+        },
+        {
+          "name": "Lab Turnaround Times",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/analytics/lab-turnaround", "host": ["{{baseUrl}}"], "path": ["analytics", "lab-turnaround"] }
+          }
+        }
+      ]
+    }
+  ]
+}

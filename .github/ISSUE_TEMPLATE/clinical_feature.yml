@@ -1,0 +1,25 @@
+name: Clinical Feature Request
+description: Propose a new clinical workflow, medical reporting enhancement, or interface improvement
+title: "[Clinical Feature]: "
+labels: ["clinical", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please specify the clinical workflows and clinical roles involved.
+  - type: textarea
+    id: clinical-context
+    attributes:
+      label: Clinical Background & Justification
+      description: Which medical departments (e.g. Cardiology, Inpatient, Lab) or roles (Doctor, Nurse) need this?
+    validations:
+      required: true
+  - type: checkboxes
+    id: clinical-safety
+    attributes:
+      label: Clinical Safety & Diagnostic Boundaries
+      options:
+        - label: This feature is purely operational or data collection and does NOT generate automated medical diagnoses or treatment orders.
+          required: true
+        - label: Patient consent verification must be enforced prior to sharing or exporting data.
+          required: true

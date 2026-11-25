@@ -141,24 +141,26 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-slate-200">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 text-center">
-            Development Quick Role Switcher
-          </p>
-          <div className="grid grid-cols-1 gap-1.5">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <button
-                key={acc.email}
-                type="button"
-                onClick={() => selectDemoAccount(acc.email)}
-                className="text-left px-3 py-2 text-xs rounded border border-slate-200 hover:bg-sky-50 hover:border-sky-300 transition-colors flex items-center justify-between group"
-              >
-                <span className="font-medium text-slate-800">{acc.label}</span>
-                <UserCheck className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600" />
-              </button>
-            ))}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="mt-8 pt-6 border-t border-slate-200">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 text-center">
+              Development Quick Role Switcher
+            </p>
+            <div className="grid grid-cols-1 gap-1.5">
+              {DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.email}
+                  type="button"
+                  onClick={() => selectDemoAccount(acc.email)}
+                  className="text-left px-3 py-2 text-xs rounded border border-slate-200 hover:bg-sky-50 hover:border-sky-300 transition-colors flex items-center justify-between group"
+                >
+                  <span className="font-medium text-slate-800">{acc.label}</span>
+                  <UserCheck className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600" />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

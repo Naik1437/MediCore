@@ -1,0 +1,29 @@
+# MediCore Codeowners Policy (MC-10)
+# Enforces designated clinical and security review boundaries.
+
+# Global fallback: Core engineering team
+*                   @medicore/core-engineers
+
+# Security & Access Control Boundaries (MC-04, MC-16, MC-17)
+# Any change to auth, authorization, clinical access middlewares, or token lifecycle
+# requires explicit sign-off from Healthcare Security Lead.
+/backend/src/middlewares/        @medicore/security-officers @medicore/lead-architect
+/backend/src/services/authService.ts @medicore/security-officers
+/backend/src/constants/roles.ts   @medicore/security-officers
+
+# Clinical Relational Schema & Migrations (MC-03, MC-07)
+# Schema adjustments, exclusion constraints, or data relationships
+# require Database Administrator & Clinical Workflow Lead sign-off.
+/backend/prisma/schema.prisma     @medicore/database-admins @medicore/clinical-leads
+/backend/prisma/migrations/       @medicore/database-admins @medicore/clinical-leads
+
+# Clinical Intelligence & Non-Diagnostic Boundary (MC-05, MC-06)
+# Statistical calculations and non-diagnostic disclaimers
+/analytics/                       @medicore/clinical-data-scientists @medicore/clinical-leads
+
+# Infrastructure & Containers (MC-09, MC-14)
+/docker-compose*.yml              @medicore/devops-engineers
+/backend/Dockerfile               @medicore/devops-engineers
+/frontend/Dockerfile              @medicore/devops-engineers
+/analytics/Dockerfile             @medicore/devops-engineers
+/.github/workflows/               @medicore/devops-engineers @medicore/security-officers

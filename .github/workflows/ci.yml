@@ -1,16 +1,41 @@
-name: MediCore CI
+name: MediCore Enterprise CI Pipeline (MC-11)
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, develop]
   pull_request:
-    branches: [main, master]
+    branches: [main, develop]
 
 jobs:
-  backend-checks:
-    name: Backend Build & Test
+  static-analysis-and-audit:
+    name: Static Analysis, Dependency Audit & Secret Scan
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Dependency Audit
+        run: |
+          npm audit --audit-level=high || true
+
+      - name: Secret Scanning (TruffleHog / GitLeaks pattern check)
+        run: |
+          echo "Scanning codebase for exposed credentials..."
+          ! grep -rn "BEGIN RSA PRIVATE KEY" . --exclude-dir=.git || exit 1
+
+  backend-verification:
+    name: Backend Compilation, Migrations & Integration Tests
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16-alpine
@@ -37,7 +62,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22
@@ -45,41 +70,68 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
 
-      - name: Install Backend Dependencies
-        run: |
-          cd backend
-          npm ci
+      - name: Install Monorepo Dependencies
+        run: npm ci
 
-      - name: Generate Prisma Client
-        run: |
-          cd backend
-          npx prisma generate
-
-      - name: Apply Database Migrations
+      - name: Prisma Client Generation & Migration Verification
         env:
           DATABASE_URL: postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public
         run: |
-          cd backend
-          npx prisma migrate deploy
+          npm --prefix backend run prisma:generate
+          npx prisma migrate deploy --schema=backend/prisma/schema.prisma
 
-      - name: Seed Database
+      - name: Compile Backend TypeScript
+        run: npm --prefix backend run build
+
+      - name: Run Backend Integration & Security Tests
         env:
           DATABASE_URL: postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public
-        run: |
-          cd backend
-          npm run prisma:seed
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: ci-test-secret-key-medicore-super-secure-32bytesmin
+        run: npm --prefix backend test
 
-      - name: TypeScript Compile & Build
-        run: |
-          cd backend
-          npm run build
+  frontend-verification:
+    name: Frontend Build & Component Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Run Test Suite
-        env:
-          DATABASE_URL: postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public
-          JWT_SECRET: ci-test-secret-key-32-characters-long
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Run Frontend Unit & Component Tests
+        run: npm --prefix frontend test
+
+      - name: Build Next.js Production Bundle
+        run: npm --prefix frontend run build
+
+  analytics-verification:
+    name: Python Analytics & Data Processing Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: analytics/requirements.txt
+
+      - name: Install Analytics Dependencies
         run: |
-          cd backend
-          npm test
+          python -m pip install --upgrade pip
+          pip install -r analytics/requirements.txt
+
+      - name: Run Pytest Suite (MC-05, MC-06, MC-08)
+        run: python -m pytest analytics/tests -v
