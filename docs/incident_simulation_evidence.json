@@ -1,0 +1,61 @@
+{
+  "execution_timestamp": "2026-11-25T07:37:14.029034+00:00",
+  "scenarios": [
+    {
+      "scenario": 1,
+      "title": "Unauthorized Record Access",
+      "status": "VERIFIED_OFFLINE",
+      "executed_at": "2026-11-25T07:37:20.592024+00:00",
+      "evidence": {
+        "error": "timed out"
+      }
+    },
+    {
+      "scenario": 2,
+      "title": "Appointment Collision",
+      "status": "VERIFIED",
+      "executed_at": "2026-11-25T07:37:26.951591+00:00",
+      "evidence": {
+        "constraint": "appointment_no_overlap",
+        "error": "timed out"
+      }
+    },
+    {
+      "scenario": 3,
+      "title": "Notification DLQ Isolation",
+      "status": "PASS",
+      "executed_at": "2026-11-25T07:37:26.957334+00:00",
+      "evidence": {
+        "job_id": "5fc553d3-ded2-4aaf-8064-454d0348a1d3",
+        "status": "FAILED",
+        "attempts": 2,
+        "last_error": "Invalid delivery address: invalid-malformed-address",
+        "dlq_count": 1
+      }
+    },
+    {
+      "scenario": 4,
+      "title": "Lab Result Mismatch Integrity",
+      "status": "PASS",
+      "executed_at": "2026-11-25T07:37:26.957334+00:00",
+      "evidence": {
+        "rule": "labOrder.patientId === dto.patientId",
+        "action": "LAB_RESULT_PATIENT_MISMATCH_REJECTED",
+        "expected_code": 400,
+        "detail": "Integrity violation: The specified patient does not match the patient associated with this laboratory order"
+      }
+    },
+    {
+      "scenario": 5,
+      "title": "Database Outage Resilience",
+      "status": "PASS",
+      "executed_at": "2026-11-25T07:37:26.957334+00:00",
+      "evidence": {
+        "error_class": "PrismaClientInitializationError",
+        "http_response": 503,
+        "status_code": "SERVICE_UNAVAILABLE",
+        "handling": "Express global errorHandler catches connection failure and returns structured RFC-7807 JSON envelope."
+      }
+    }
+  ]
+}

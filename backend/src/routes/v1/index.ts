@@ -12,6 +12,7 @@ import {
 } from '../../controllers/clinicalControllers.js';
 import { HealthController } from '../../controllers/healthController.js';
 import { AnalyticsController } from '../../controllers/analyticsController.js';
+import { FHIRController } from '../../controllers/fhirController.js';
 import { authenticate } from '../../middlewares/authenticate.js';
 import { requireRoles } from '../../middlewares/authorize.js';
 import { enforceClinicalAccess } from '../../middlewares/clinicalAccess.js';
@@ -63,7 +64,7 @@ router.post(
 router.get(
   '/patients',
   authenticate,
-  requireRoles(UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN),
+  requireRoles(UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN, UserRole.BILLING_OFFICER),
   PatientController.list
 );
 router.get(
@@ -114,11 +115,23 @@ router.get(
   requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE),
   AppointmentController.list
 );
+router.get(
+  '/appointments/:id',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN),
+  AppointmentController.getById
+);
 router.post(
   '/appointments/:id/cancel',
   authenticate,
   requireRoles(UserRole.PATIENT, UserRole.RECEPTIONIST, UserRole.DOCTOR, UserRole.NURSE),
   AppointmentController.cancel
+);
+router.post(
+  '/appointments/:id/check-in',
+  authenticate,
+  requireRoles(UserRole.RECEPTIONIST, UserRole.NURSE, UserRole.DOCTOR),
+  AppointmentController.checkIn
 );
 
 // Encounters & Clinical Data
@@ -137,6 +150,13 @@ router.get(
   enforceClinicalAccess,
   requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.PATIENT),
   EncounterController.list
+);
+router.get(
+  '/encounters/:id',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.PATIENT),
+  EncounterController.getById
 );
 router.post(
   '/encounters/:id/diagnoses',
@@ -172,6 +192,7 @@ router.patch(
 router.get(
   '/prescriptions/patient/:patientId',
   authenticate,
+  enforceClinicalAccess,
   requireRoles(UserRole.PATIENT, UserRole.DOCTOR, UserRole.NURSE),
   EncounterController.getPatientPrescriptions
 );
@@ -188,12 +209,14 @@ router.post(
 router.get(
   '/lab/orders',
   authenticate,
+  enforceClinicalAccess,
   requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.LAB_TECHNICIAN, UserRole.PATIENT),
   LabController.listOrders
 );
 router.patch(
   '/lab/orders/:id/status',
   authenticate,
+  enforceClinicalAccess,
   requireRoles(UserRole.LAB_TECHNICIAN, UserRole.DOCTOR, UserRole.NURSE),
   validate(updateLabOrderStatusSchema),
   LabController.updateOrderStatus
@@ -201,6 +224,7 @@ router.patch(
 router.post(
   '/lab/results',
   authenticate,
+  enforceClinicalAccess,
   requireRoles(UserRole.LAB_TECHNICIAN, UserRole.DOCTOR),
   validate(recordLabResultSchema),
   LabController.recordResult
@@ -208,6 +232,7 @@ router.post(
 router.get(
   '/lab/results',
   authenticate,
+  enforceClinicalAccess,
   requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.LAB_TECHNICIAN, UserRole.PATIENT),
   LabController.listResults
 );
@@ -246,6 +271,12 @@ router.post(
   authenticate,
   requireRoles(UserRole.PATIENT),
   ConsentController.revokeConsent
+);
+router.post(
+  '/consents/:id/grant',
+  authenticate,
+  requireRoles(UserRole.PATIENT),
+  ConsentController.grantConsent
 );
 router.get(
   '/consents/patient/:patientId',
@@ -316,6 +347,34 @@ router.get(
   authenticate,
   requireRoles(UserRole.HOSPITAL_ADMIN, UserRole.DOCTOR),
   AnalyticsController.getPopulationHealth
+);
+
+// FHIR R4 Interoperability Endpoints (MC-08)
+router.get('/fhir/r4/metadata', FHIRController.getMetadata);
+router.get(
+  '/fhir/r4/Patient/:id',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.DOCTOR, UserRole.NURSE, UserRole.RECEPTIONIST),
+  FHIRController.getPatient
+);
+router.get(
+  '/fhir/r4/Appointment/:id',
+  authenticate,
+  requireRoles(UserRole.PATIENT, UserRole.DOCTOR, UserRole.NURSE, UserRole.RECEPTIONIST),
+  FHIRController.getAppointment
+);
+router.get(
+  '/fhir/r4/Encounter/:id',
+  authenticate,
+  enforceClinicalAccess,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.PATIENT),
+  FHIRController.getEncounter
+);
+router.get(
+  '/fhir/r4/Observation',
+  authenticate,
+  requireRoles(UserRole.DOCTOR, UserRole.NURSE, UserRole.LAB_TECHNICIAN, UserRole.PATIENT),
+  FHIRController.searchObservations
 );
 
 export default router;

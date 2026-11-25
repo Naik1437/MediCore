@@ -1,0 +1,54 @@
+{
+  "valid_records": [
+    {
+      "id": "apt-s1",
+      "patientId": "pat-101",
+      "providerId": "doc-101",
+      "startTime": "2026-11-25T09:00:00+00:00",
+      "endTime": "2026-11-25T09:30:00+00:00",
+      "durationMinutes": 30,
+      "status": "COMPLETED",
+      "type": "ROUTINE_CHECKUP",
+      "reason": "Follow-up"
+    },
+    {
+      "id": "apt-s3",
+      "patientId": "pat-103",
+      "providerId": "doc-102",
+      "startTime": "2026-11-25T11:00:00+00:00",
+      "endTime": "2026-11-25T11:45:00+00:00",
+      "durationMinutes": 45,
+      "status": "COMPLETED",
+      "type": "ROUTINE_CHECKUP",
+      "reason": "Cardiology consult"
+    }
+  ],
+  "report": {
+    "timestamp": "2026-11-25T07:37:46.062989+00:00",
+    "dataset_type": "APPOINTMENTS",
+    "total_records": 3,
+    "valid_records": 2,
+    "invalid_records": 1,
+    "validation_issues": [
+      {
+        "record_id": "apt-s2",
+        "field": "time_window",
+        "issue_type": "OUT_OF_RANGE",
+        "message": "endTime (2026-11-25T09:30:00Z) must be strictly after startTime (2026-11-25T10:00:00Z)",
+        "raw_value": {
+          "startTime": "2026-11-25T10:00:00Z",
+          "endTime": "2026-11-25T09:30:00Z"
+        }
+      }
+    ],
+    "metrics": {
+      "status_distribution": {
+        "COMPLETED": 2,
+        "SCHEDULED": 1
+      },
+      "average_duration_minutes": 37.5,
+      "total_scheduled_hours": 1.25
+    },
+    "processing_time_ms": 0.06
+  }
+}

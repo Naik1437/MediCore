@@ -92,7 +92,7 @@ export const createDiagnosisSchema = z.object({
   body: z.object({
     patientId: z.string().uuid(),
     providerId: z.string().uuid(),
-    encounterId: z.string().uuid(),
+    encounterId: z.string().uuid().optional(),
     icdCode: z.string().min(2, 'ICD-10 code is required'),
     description: z.string().min(3, 'Diagnosis description is required'),
     type: z.enum(['PRIMARY', 'SECONDARY']).default('PRIMARY'),
@@ -101,7 +101,7 @@ export const createDiagnosisSchema = z.object({
 
 export const createMedicationOrderSchema = z.object({
   body: z.object({
-    encounterId: z.string().uuid(),
+    encounterId: z.string().uuid().optional(),
     patientId: z.string().uuid(),
     providerId: z.string().uuid(),
     medicationName: z.string().min(2, 'Medication name is required'),
@@ -159,7 +159,7 @@ export const createConsentSchema = z.object({
 
 export const updateEncounterStatusSchema = z.object({
   body: z.object({
-    status: z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+    status: z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
     notes: z.string().optional(),
   }),
 });

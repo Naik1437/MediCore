@@ -2,6 +2,7 @@ import { prisma } from '../prisma.js';
 import { NotFoundError, ConflictError } from '../utils/errors.js';
 import { parsePagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { recordAudit } from './auditService.js';
+import { UserRole } from '../constants/roles.js';
 
 export interface CreatePatientDTO {
   firstName: string;
@@ -50,7 +51,7 @@ export class PatientService {
     return patient;
   }
 
-  static async getPatients(query: any) {
+  static async getPatients(query: any, requesterRole?: UserRole) {
     const pagination = parsePagination(query);
     const search = query.search as string;
 
@@ -64,10 +65,28 @@ export class PatientService {
       ];
     }
 
+    // For non-clinical administrative/billing/reception roles, select minimal patient demographic data
+    // ensuring no sensitive clinical records or unnecessary data are exposed
+    const isMinimalSelector = requesterRole === UserRole.BILLING_OFFICER || requesterRole === UserRole.RECEPTIONIST;
+
+    const select = isMinimalSelector
+      ? {
+          id: true,
+          mrn: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          gender: true,
+          dob: true,
+          createdAt: true,
+        }
+      : undefined;
+
     const [total, patients] = await Promise.all([
       prisma.patient.count({ where }),
       prisma.patient.findMany({
         where,
+        ...(select ? { select } : {}),
         skip: pagination.skip,
         take: pagination.limit,
         orderBy: { createdAt: 'desc' },

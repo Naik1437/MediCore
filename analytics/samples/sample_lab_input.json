@@ -1,0 +1,42 @@
+[
+  {
+    "id": "lab-s1",
+    "patientId": "pat-101",
+    "testType": "GLUCOSE",
+    "value": 95.0,
+    "unit": "mg/dL",
+    "timestamp": "2026-11-25T10:00:00Z"
+  },
+  {
+    "id": "lab-s2",
+    "patientId": "pat-102",
+    "testType": "GLUCOSE",
+    "value": 145.0,
+    "unit": "mg/dL",
+    "timestamp": "2026-11-25T10:05:00Z"
+  },
+  {
+    "id": "lab-s3",
+    "patientId": "pat-103",
+    "testType": "HEMOGLOBIN_A1C",
+    "value": 7.2,
+    "unit": "%",
+    "timestamp": "2026-11-25T10:10:00Z"
+  },
+  {
+    "id": "lab-s4",
+    "patientId": "pat-104",
+    "testType": "GLUCOSE",
+    "value": 95.0,
+    "unit": "INVALID_U",
+    "timestamp": "2026-11-25T10:15:00Z"
+  },
+  {
+    "id": "lab-s5",
+    "patientId": "pat-105",
+    "testType": "TOTAL_CHOLESTEROL",
+    "value": null,
+    "unit": "mg/dL",
+    "timestamp": "2026-11-25T10:20:00Z"
+  }
+]

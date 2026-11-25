@@ -61,6 +61,7 @@ class NotificationWorker:
         self.redis = redis_client
         self._processed_idempotency_keys: set = set()
         self.sent_log: List[Dict[str, Any]] = []
+        self.dlq: List[Dict[str, Any]] = []
 
     def dispatch(self, job: NotificationJob) -> Dict[str, Any]:
         """Executes notification delivery with idempotency protection and retry handling."""
@@ -108,5 +109,30 @@ class NotificationWorker:
             except Exception:
                 pass
 
-        self.sent_log.append(job.to_dict())
-        return job.to_dict()
+        job_dict = job.to_dict()
+        if job.status == "FAILED":
+            self.dlq.append(job_dict)
+            if self.redis:
+                try:
+                    self.redis.rpush("medicore:notifications:dlq", json.dumps(job_dict))
+                except Exception:
+                    pass
+        else:
+            self.sent_log.append(job_dict)
+
+        return job_dict
+
+    def get_dlq(self) -> List[Dict[str, Any]]:
+        """Returns captured dead-letter queue records for verification and recovery."""
+        if self.redis:
+            try:
+                items = self.redis.lrange("medicore:notifications:dlq", 0, -1)
+                if items:
+                    return [json.loads(i) for i in items]
+            except Exception:
+                pass
+        return list(self.dlq)
+
+    def get_sent_log(self) -> List[Dict[str, Any]]:
+        """Returns log of successfully transmitted sandbox notifications."""
+        return list(self.sent_log)

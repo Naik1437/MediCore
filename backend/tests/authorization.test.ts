@@ -7,6 +7,10 @@ import { UserRole } from '../src/constants/roles.js';
 
 vi.mock('../src/prisma.js', () => ({
   prisma: {
+    patient: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
     encounter: {
       findMany: vi.fn(),
       count: vi.fn(),
@@ -83,5 +87,94 @@ describe('Authorization Boundaries & RBAC', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('allows Billing Officer to access minimal patient list for invoice generation', async () => {
+    const billingToken = generateAccessToken({
+      userId: 'user-billing-1',
+      email: 'billing@medicore.local',
+      role: UserRole.BILLING_OFFICER,
+    });
+
+    (prisma.patient.count as any).mockResolvedValue(1);
+    (prisma.patient.findMany as any).mockResolvedValue([
+      {
+        id: 'patient-uuid-1',
+        mrn: 'MC-2026-0001',
+        firstName: 'Alice',
+        lastName: 'Morgan',
+        phone: '+1-555-0101',
+        gender: 'FEMALE',
+        dob: new Date('1988-06-15'),
+        createdAt: new Date(),
+      },
+    ]);
+
+    const res = await request(app)
+      .get('/api/v1/patients')
+      .set('Authorization', `Bearer ${billingToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0]).toEqual(
+      expect.objectContaining({
+        id: 'patient-uuid-1',
+        mrn: 'MC-2026-0001',
+        firstName: 'Alice',
+        lastName: 'Morgan',
+      })
+    );
+    // Ensure findMany was called with minimal demographic select projection
+    expect(prisma.patient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          id: true,
+          mrn: true,
+          firstName: true,
+          lastName: true,
+        }),
+      })
+    );
+  });
+
+  it('allows Receptionist to access minimal patient list for appointment scheduling', async () => {
+    const receptionistToken = generateAccessToken({
+      userId: 'user-rec-1',
+      email: 'receptionist@medicore.local',
+      role: UserRole.RECEPTIONIST,
+    });
+
+    (prisma.patient.count as any).mockResolvedValue(1);
+    (prisma.patient.findMany as any).mockResolvedValue([
+      {
+        id: 'patient-uuid-1',
+        mrn: 'MC-2026-0001',
+        firstName: 'Alice',
+        lastName: 'Morgan',
+        phone: '+1-555-0101',
+        gender: 'FEMALE',
+        dob: new Date('1988-06-15'),
+        createdAt: new Date(),
+      },
+    ]);
+
+    const res = await request(app)
+      .get('/api/v1/patients')
+      .set('Authorization', `Bearer ${receptionistToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data[0].mrn).toBe('MC-2026-0001');
+    expect(prisma.patient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          id: true,
+          mrn: true,
+          firstName: true,
+          lastName: true,
+        }),
+      })
+    );
   });
 });

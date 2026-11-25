@@ -1,18 +1,20 @@
 {
   "info": {
-    "_postman_id": "medicore-postman-v2-collection",
+    "_postman_id": "medicore-postman-v3-comprehensive",
     "name": "MediCore Hospital Management Platform API (MC-13)",
-    "description": "Comprehensive Postman collection for MediCore Healthcare Platform covering Authentication, Clinical Encounters, Appointments, Diagnostics, Billing, and Analytics.",
+    "description": "Comprehensive Postman collection for MediCore Healthcare Platform covering Authentication, Clinical Encounters, Appointments, Diagnostics, Billing, Consents, Waiting List, Notifications, Analytics, and FHIR R4 interoperability.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:4002/api/v1" },
     { "key": "analyticsUrl", "value": "http://localhost:8002/api/v1" },
-    { "key": "accessToken", "value": "" }
+    { "key": "fhirUrl", "value": "http://localhost:4002/api/v1/fhir/r4" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" }
   ],
   "item": [
     {
-      "name": "Authentication",
+      "name": "1. Authentication",
       "item": [
         {
           "name": "Login (Doctor)",
@@ -27,52 +29,96 @@
           }
         },
         {
-          "name": "Get Current User Profile (/auth/me)",
+          "name": "Login (Patient)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@medicore.local\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Get Current Profile (/auth/me)",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
           }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+          }
         }
       ]
     },
     {
-      "name": "Clinical Workflows",
+      "name": "2. Patients & Registration",
       "item": [
         {
-          "name": "List Encounters",
+          "name": "Register Patient",
           "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": { "raw": "{{baseUrl}}/encounters", "host": ["{{baseUrl}}"], "path": ["encounters"] }
-          }
-        },
-        {
-          "name": "Update Encounter Status",
-          "request": {
-            "method": "PATCH",
+            "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"notes\": \"Patient examined, vitals stable, prescription issued.\"\n}"
+              "raw": "{\n  \"firstName\": \"Eleanor\",\n  \"lastName\": \"Vance\",\n  \"dob\": \"1992-06-15\",\n  \"gender\": \"FEMALE\",\n  \"phone\": \"+1-555-0199\",\n  \"email\": \"eleanor.vance@example.com\",\n  \"bloodGroup\": \"O_POSITIVE\",\n  \"address\": \"742 Evergreen Terrace\"\n}"
             },
-            "url": { "raw": "{{baseUrl}}/encounters/:id/status", "host": ["{{baseUrl}}"], "path": ["encounters", ":id", "status"] }
+            "url": { "raw": "{{baseUrl}}/patients", "host": ["{{baseUrl}}"], "path": ["patients"] }
+          }
+        },
+        {
+          "name": "List Patients",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/patients?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["patients"], "query": [{"key": "page", "value": "1"}, {"key": "limit", "value": "20"}] }
+          }
+        },
+        {
+          "name": "Get Patient by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/patients/:patientId", "host": ["{{baseUrl}}"], "path": ["patients", ":patientId"] }
           }
         }
       ]
     },
     {
-      "name": "Appointments & Scheduling",
+      "name": "3. Appointments & Availability",
       "item": [
         {
           "name": "Check Provider Availability",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": { "raw": "{{baseUrl}}/providers/:providerId/availability?date=2026-12-01", "host": ["{{baseUrl}}"], "path": ["providers", ":providerId", "availability"] }
+            "url": { "raw": "{{baseUrl}}/providers/:providerId/availability?date=2026-12-01", "host": ["{{baseUrl}}"], "path": ["providers", ":providerId", "availability"], "query": [{"key": "date", "value": "2026-12-01"}] }
           }
         },
         {
@@ -85,38 +131,381 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"providerId\": \"doc-uuid\",\n  \"startTime\": \"2026-12-01T09:00:00Z\",\n  \"endTime\": \"2026-12-01T09:30:00Z\",\n  \"type\": \"CONSULTATION\"\n}"
+              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"providerId\": \"doc-uuid\",\n  \"departmentId\": \"dept-uuid\",\n  \"scheduledStart\": \"2026-12-01T09:00:00Z\",\n  \"scheduledEnd\": \"2026-12-01T09:30:00Z\",\n  \"reason\": \"Routine Cardiology Checkup\"\n}"
             },
             "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "List Appointments",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/appointments?status=SCHEDULED", "host": ["{{baseUrl}}"], "path": ["appointments"], "query": [{"key": "status", "value": "SCHEDULED"}] }
+          }
+        },
+        {
+          "name": "Get Appointment by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/appointments/:id", "host": ["{{baseUrl}}"], "path": ["appointments", ":id"] }
+          }
+        },
+        {
+          "name": "Check In Patient",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/appointments/:id/check-in", "host": ["{{baseUrl}}"], "path": ["appointments", ":id", "check-in"] }
+          }
+        },
+        {
+          "name": "Cancel Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Patient request\"\n}" },
+            "url": { "raw": "{{baseUrl}}/appointments/:id/cancel", "host": ["{{baseUrl}}"], "path": ["appointments", ":id", "cancel"] }
           }
         }
       ]
     },
     {
-      "name": "Clinical Analytics (MC-06)",
+      "name": "4. Clinical Encounters & Care Workflows",
+      "item": [
+        {
+          "name": "Create Clinical Encounter",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"providerId\": \"doc-uuid\",\n  \"appointmentId\": \"appt-uuid\",\n  \"encounterType\": \"OUTPATIENT\",\n  \"notes\": \"Initial nursing triage completed: BP 120/80, HR 72, SpO2 98%\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/encounters", "host": ["{{baseUrl}}"], "path": ["encounters"] }
+          }
+        },
+        {
+          "name": "List Encounters",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/encounters?status=IN_PROGRESS", "host": ["{{baseUrl}}"], "path": ["encounters"], "query": [{"key": "status", "value": "IN_PROGRESS"}] }
+          }
+        },
+        {
+          "name": "Get Encounter by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/encounters/:id", "host": ["{{baseUrl}}"], "path": ["encounters", ":id"] }
+          }
+        },
+        {
+          "name": "Add ICD-10 Diagnosis",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"providerId\": \"doc-uuid\",\n  \"icdCode\": \"I10\",\n  \"description\": \"Essential (primary) hypertension\",\n  \"type\": \"PRIMARY\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/encounters/:id/diagnoses", "host": ["{{baseUrl}}"], "path": ["encounters", ":id", "diagnoses"] }
+          }
+        },
+        {
+          "name": "Create Prescription",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"providerId\": \"doc-uuid\",\n  \"medicationName\": \"Amlodipine 5mg\",\n  \"dosage\": \"5mg daily\",\n  \"frequency\": \"Once daily\",\n  \"duration\": \"30 days\",\n  \"instructions\": \"Take with water in the morning\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/encounters/:id/prescriptions", "host": ["{{baseUrl}}"], "path": ["encounters", ":id", "prescriptions"] }
+          }
+        },
+        {
+          "name": "Update Encounter Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"notes\": \"Care completed and patient discharged.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/encounters/:id/status", "host": ["{{baseUrl}}"], "path": ["encounters", ":id", "status"] }
+          }
+        },
+        {
+          "name": "Get Patient Prescriptions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/prescriptions/patient/:patientId", "host": ["{{baseUrl}}"], "path": ["prescriptions", "patient", ":patientId"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Laboratory & Diagnostic Orders",
+      "item": [
+        {
+          "name": "Create Lab Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"encounterId\": \"enc-uuid\",\n  \"patientId\": \"pat-uuid\",\n  \"providerId\": \"doc-uuid\",\n  \"departmentId\": \"dept-uuid\",\n  \"testType\": \"Comprehensive Metabolic Panel (CMP)\",\n  \"priority\": \"ROUTINE\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/lab/orders", "host": ["{{baseUrl}}"], "path": ["lab", "orders"] }
+          }
+        },
+        {
+          "name": "List Lab Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/lab/orders?status=ORDERED", "host": ["{{baseUrl}}"], "path": ["lab", "orders"], "query": [{"key": "status", "value": "ORDERED"}] }
+          }
+        },
+        {
+          "name": "Update Lab Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}" },
+            "url": { "raw": "{{baseUrl}}/lab/orders/:id/status", "host": ["{{baseUrl}}"], "path": ["lab", "orders", ":id", "status"] }
+          }
+        },
+        {
+          "name": "Record Lab Result",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"labOrderId\": \"order-uuid\",\n  \"patientId\": \"pat-uuid\",\n  \"resultValues\": { \"glucose\": \"92 mg/dL\", \"potassium\": \"4.1 mEq/L\" },\n  \"referenceRange\": \"Normal reference bounds verified\",\n  \"interpretation\": \"All metabolic parameters within normal limits\",\n  \"status\": \"FINAL\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/lab/results", "host": ["{{baseUrl}}"], "path": ["lab", "results"] }
+          }
+        },
+        {
+          "name": "List Lab Results",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/lab/results", "host": ["{{baseUrl}}"], "path": ["lab", "results"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Patient Consent Directives",
+      "item": [
+        {
+          "name": "Record Consent Directive",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"consentType\": \"DATA_SHARING\",\n  \"status\": \"GRANTED\",\n  \"notes\": \"Patient grants clinical data exchange\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/consents", "host": ["{{baseUrl}}"], "path": ["consents"] }
+          }
+        },
+        {
+          "name": "Revoke Consent",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/consents/:id/revoke", "host": ["{{baseUrl}}"], "path": ["consents", ":id", "revoke"] }
+          }
+        },
+        {
+          "name": "Grant / Restore Consent",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/consents/:id/grant", "host": ["{{baseUrl}}"], "path": ["consents", ":id", "grant"] }
+          }
+        },
+        {
+          "name": "Get Patient Consents",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/consents/patient/:patientId", "host": ["{{baseUrl}}"], "path": ["consents", "patient", ":patientId"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Billing & Invoicing",
+      "item": [
+        {
+          "name": "Create Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"pat-uuid\",\n  \"totalAmount\": 150.00,\n  \"lineItems\": [\n    { \"description\": \"Specialist Consultation\", \"amount\": 100.00 },\n    { \"description\": \"Diagnostic Lab Panel\", \"amount\": 50.00 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/billing/invoices", "host": ["{{baseUrl}}"], "path": ["billing", "invoices"] }
+          }
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/billing/invoices", "host": ["{{baseUrl}}"], "path": ["billing", "invoices"] }
+          }
+        },
+        {
+          "name": "Pay Invoice",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/billing/invoices/:id/pay", "host": ["{{baseUrl}}"], "path": ["billing", "invoices", ":id", "pay"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. HL7 FHIR R4 Interoperability (MC-08)",
+      "item": [
+        {
+          "name": "FHIR CapabilityStatement",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{fhirUrl}}/metadata", "host": ["{{fhirUrl}}"], "path": ["metadata"] }
+          }
+        },
+        {
+          "name": "FHIR Patient by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{fhirUrl}}/Patient/:id", "host": ["{{fhirUrl}}"], "path": ["Patient", ":id"] }
+          }
+        },
+        {
+          "name": "FHIR Appointment by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{fhirUrl}}/Appointment/:id", "host": ["{{fhirUrl}}"], "path": ["Appointment", ":id"] }
+          }
+        },
+        {
+          "name": "FHIR Encounter by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{fhirUrl}}/Encounter/:id", "host": ["{{fhirUrl}}"], "path": ["Encounter", ":id"] }
+          }
+        },
+        {
+          "name": "FHIR Search Observations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{fhirUrl}}/Observation?patient=:patientId", "host": ["{{fhirUrl}}"], "path": ["Observation"], "query": [{"key": "patient", "value": ":patientId"}] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Clinical Analytics & Notifications (MC-06 & MC-08)",
       "item": [
         {
           "name": "Appointment Utilization",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": { "raw": "{{baseUrl}}/analytics/utilization", "host": ["{{baseUrl}}"], "path": ["analytics", "utilization"] }
+            "url": { "raw": "{{analyticsUrl}}/analytics/utilization?period_days=30", "host": ["{{analyticsUrl}}"], "path": ["analytics", "utilization"], "query": [{"key": "period_days", "value": "30"}] }
           }
         },
         {
-          "name": "Wait Times Summary",
+          "name": "Patient Wait Times",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": { "raw": "{{baseUrl}}/analytics/wait-times", "host": ["{{baseUrl}}"], "path": ["analytics", "wait-times"] }
+            "url": { "raw": "{{analyticsUrl}}/analytics/wait-times", "host": ["{{analyticsUrl}}"], "path": ["analytics", "wait-times"] }
           }
         },
         {
-          "name": "Lab Turnaround Times",
+          "name": "Lab Turnaround Performance",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": { "raw": "{{baseUrl}}/analytics/lab-turnaround", "host": ["{{baseUrl}}"], "path": ["analytics", "lab-turnaround"] }
+            "url": { "raw": "{{analyticsUrl}}/analytics/lab-turnaround", "host": ["{{analyticsUrl}}"], "path": ["analytics", "lab-turnaround"] }
+          }
+        },
+        {
+          "name": "Population Health Epidemiology",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{analyticsUrl}}/analytics/population-health", "host": ["{{analyticsUrl}}"], "path": ["analytics", "population-health"] }
+          }
+        },
+        {
+          "name": "Dispatch Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient\": \"alice@medicore.local\",\n  \"channel\": \"EMAIL\",\n  \"template_id\": \"APPOINTMENT_REMINDER\",\n  \"data\": { \"appointmentTime\": \"2026-12-01 09:00 AM\" },\n  \"idempotency_key\": \"msg-idem-test-100\"\n}"
+            },
+            "url": { "raw": "{{analyticsUrl}}/notifications/send", "host": ["{{analyticsUrl}}"], "path": ["notifications", "send"] }
+          }
+        },
+        {
+          "name": "Inspect Notification Dead-Letter Queue (DLQ)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{analyticsUrl}}/notifications/dlq", "host": ["{{analyticsUrl}}"], "path": ["notifications", "dlq"] }
           }
         }
       ]

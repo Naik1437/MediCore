@@ -10,7 +10,7 @@ import { WaitingListService } from '../services/waitingListService.js';
 import { AdminSummaryService } from '../services/adminSummaryService.js';
 import { prisma } from '../prisma.js';
 import { parsePagination, formatPaginatedResponse } from '../utils/pagination.js';
-import { ForbiddenError } from '../utils/errors.js';
+import { ForbiddenError, NotFoundError } from '../utils/errors.js';
 import { UserRole } from '../constants/roles.js';
 
 export class PatientController {
@@ -25,7 +25,7 @@ export class PatientController {
 
   static async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await PatientService.getPatients(req.query);
+      const result = await PatientService.getPatients(req.query, req.user?.role);
       res.status(200).json({ success: true, ...result });
     } catch (error) {
       next(error);
@@ -84,11 +84,38 @@ export class AppointmentController {
     }
   }
 
+  static async checkIn(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await AppointmentService.checkInAppointment(
+        req.params.id,
+        req.user?.userId
+      );
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getAvailability(req: Request, res: Response, next: NextFunction) {
     try {
       const dateStr = (req.query.date as string) || new Date().toISOString().split('T')[0];
       const availability = await AppointmentService.getProviderAvailability(req.params.id, dateStr);
       res.status(200).json({ success: true, data: availability });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const appt = await AppointmentService.getAppointmentById(req.params.id);
+      if (!appt) {
+        throw new NotFoundError(`Appointment ${req.params.id} not found`);
+      }
+      if (req.user?.role === UserRole.PATIENT && req.user.patientId && appt.patientId !== req.user.patientId) {
+        throw new ForbiddenError('You can only access your own appointments');
+      }
+      res.status(200).json({ success: true, data: appt });
     } catch (error) {
       next(error);
     }
@@ -105,10 +132,30 @@ export class EncounterController {
     }
   }
 
+  static async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const enc = await EncounterService.getEncounterById(req.params.id, req.user?.userId, req.user?.role);
+      if (!enc) {
+        throw new NotFoundError(`Encounter ${req.params.id} not found`);
+      }
+      if (req.user?.role === UserRole.PATIENT && req.user.patientId && enc.patientId !== req.user.patientId) {
+        throw new ForbiddenError('You can only access your own medical encounters');
+      }
+      res.status(200).json({ success: true, data: enc });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async list(req: Request, res: Response, next: NextFunction) {
     try {
       const requestingPatientId = req.user?.role === UserRole.PATIENT ? req.user.patientId : undefined;
-      const result = await EncounterService.getEncounters(req.query, requestingPatientId, req.user?.userId);
+      const result = await EncounterService.getEncounters(
+        req.query,
+        requestingPatientId,
+        req.user?.userId,
+        req.user?.role
+      );
       res.status(200).json({ success: true, ...result });
     } catch (error) {
       next(error);
@@ -172,7 +219,11 @@ export class EncounterController {
       if (req.user?.role === UserRole.PATIENT && req.user.patientId !== targetPatientId) {
         throw new ForbiddenError('You can only view your own prescriptions');
       }
-      const prescriptions = await EncounterService.getPatientPrescriptions(targetPatientId as string);
+      const prescriptions = await EncounterService.getPatientPrescriptions(
+        targetPatientId as string,
+        req.user?.userId,
+        req.user?.role
+      );
       res.status(200).json({ success: true, data: prescriptions });
     } catch (error) {
       next(error);
@@ -193,7 +244,7 @@ export class LabController {
   static async listOrders(req: Request, res: Response, next: NextFunction) {
     try {
       const requestingPatientId = req.user?.role === UserRole.PATIENT ? req.user.patientId : undefined;
-      const result = await LabService.getLabOrders(req.query, requestingPatientId);
+      const result = await LabService.getLabOrders(req.query, requestingPatientId, req.user?.role);
       res.status(200).json({ success: true, ...result });
     } catch (error) {
       next(error);
@@ -216,7 +267,7 @@ export class LabController {
   static async listResults(req: Request, res: Response, next: NextFunction) {
     try {
       const requestingPatientId = req.user?.role === UserRole.PATIENT ? req.user.patientId : undefined;
-      const result = await LabService.getLabResults(req.query, requestingPatientId);
+      const result = await LabService.getLabResults(req.query, requestingPatientId, req.user?.role);
       res.status(200).json({ success: true, ...result });
     } catch (error) {
       next(error);
@@ -282,7 +333,28 @@ export class ConsentController {
 
   static async revokeConsent(req: Request, res: Response, next: NextFunction) {
     try {
+      if (req.user?.role === UserRole.PATIENT) {
+        const consent = await prisma.consent.findUnique({ where: { id: req.params.id } });
+        if (consent && req.user.patientId && consent.patientId !== req.user.patientId) {
+          throw new ForbiddenError('Patients can only revoke their own consent directives');
+        }
+      }
       const updated = await ConsentService.revokeConsent(req.params.id, req.user?.userId);
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async grantConsent(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (req.user?.role === UserRole.PATIENT) {
+        const consent = await prisma.consent.findUnique({ where: { id: req.params.id } });
+        if (consent && req.user.patientId && consent.patientId !== req.user.patientId) {
+          throw new ForbiddenError('Patients can only restore their own consent directives');
+        }
+      }
+      const updated = await ConsentService.grantConsent(req.params.id, req.user?.userId);
       res.status(200).json({ success: true, data: updated });
     } catch (error) {
       next(error);

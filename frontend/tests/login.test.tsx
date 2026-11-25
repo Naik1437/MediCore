@@ -110,5 +110,46 @@ describe('Frontend Login Page & Role Selection (MC-01)', () => {
       expect(localStorage.getItem('medicore_access_token')).toBe('mock-access-token');
     });
   });
+
+  it('normalizes patientProfile and mrn on patient login', async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      success: true,
+      data: {
+        accessToken: 'mock-patient-access-token',
+        refreshToken: 'mock-patient-refresh-token',
+        user: {
+          id: 'patient-user-1',
+          email: 'patient@medicore.local',
+          role: 'PATIENT',
+          firstName: 'Alice',
+          lastName: 'Morgan',
+          patientProfile: {
+            id: 'patient-uuid-1',
+            mrn: 'MRN-2026-0001',
+            bloodGroup: 'O_POSITIVE',
+            phone: '555-0100',
+          },
+          patientId: 'patient-uuid-1',
+        },
+      },
+    });
+
+    render(
+      <AuthProvider>
+        <LoginPage />
+      </AuthProvider>
+    );
+
+    const patientBtn = screen.getByText('Patient (Alice Morgan)');
+    fireEvent.click(patientBtn);
+
+    const submitBtn = screen.getByRole('button', { name: /Sign In/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+      expect(localStorage.getItem('medicore_access_token')).toBe('mock-patient-access-token');
+    });
+  });
 });
 

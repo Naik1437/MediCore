@@ -139,6 +139,21 @@ export function ReceptionistDashboard() {
     },
   });
 
+  // Check-In Appointment Mutation
+  const checkInAppointmentMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/appointments/${id}/check-in`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-appointments'] });
+      setFeedback({ type: 'success', message: 'Patient checked in successfully. Appointment confirmed for nursing triage.' });
+    },
+    onError: (err: any) => {
+      setFeedback({ type: 'error', message: err.message || 'Failed to check in patient.' });
+    },
+  });
+
   // Cancel Appointment Mutation
   const cancelAppointmentMutation = useMutation({
     mutationFn: (id: string) =>
@@ -464,14 +479,27 @@ export function ReceptionistDashboard() {
                     <td className="py-3 px-4">
                       <Badge status={a.status} />
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right space-x-2">
                       {a.status === 'SCHEDULED' && (
-                        <button
-                          onClick={() => cancelAppointmentMutation.mutate(a.id)}
-                          className="text-rose-600 hover:text-rose-800 font-semibold"
-                        >
-                          Cancel
-                        </button>
+                        <>
+                          <button
+                            onClick={() => checkInAppointmentMutation.mutate(a.id)}
+                            disabled={checkInAppointmentMutation.isPending}
+                            className="text-emerald-600 hover:text-emerald-800 font-semibold"
+                          >
+                            Check In
+                          </button>
+                          <button
+                            onClick={() => cancelAppointmentMutation.mutate(a.id)}
+                            disabled={cancelAppointmentMutation.isPending}
+                            className="text-rose-600 hover:text-rose-800 font-semibold"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                      {a.status === 'CONFIRMED' && (
+                        <span className="text-emerald-700 font-medium text-[11px]">Checked In</span>
                       )}
                     </td>
                   </tr>

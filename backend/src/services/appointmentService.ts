@@ -125,6 +125,7 @@ export class AppointmentService {
             include: { user: { select: { firstName: true, lastName: true } } },
           },
           department: { select: { id: true, name: true, code: true } },
+          encounter: { select: { id: true, status: true } },
         },
       }),
     ]);
@@ -136,6 +137,10 @@ export class AppointmentService {
     const appointment = await prisma.appointment.findUnique({ where: { id } });
     if (!appointment) {
       throw new NotFoundError(`Appointment ${id} not found`);
+    }
+
+    if (appointment.status === 'COMPLETED' || appointment.status === 'CANCELLED') {
+      throw new BadRequestError(`Cannot cancel appointment with status '${appointment.status}'`);
     }
 
     const updated = await prisma.appointment.update({
@@ -153,6 +158,41 @@ export class AppointmentService {
       entityId: id,
       status: 'SUCCESS',
       details: { reason },
+    });
+
+    return updated;
+  }
+
+  static async checkInAppointment(id: string, actorUserId?: string) {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      include: { encounter: true },
+    });
+    if (!appointment) {
+      throw new NotFoundError(`Appointment ${id} not found`);
+    }
+
+    if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') {
+      throw new BadRequestError(`Cannot check in an appointment with status '${appointment.status}'`);
+    }
+
+    if (appointment.status === 'COMPLETED') {
+      throw new BadRequestError('Cannot check in a completed appointment');
+    }
+
+    // Transition appointment to CONFIRMED (checked-in patient awaiting triage/consultation)
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { status: 'CONFIRMED' },
+    });
+
+    await recordAudit({
+      userId: actorUserId,
+      action: 'APPOINTMENT_CHECKED_IN',
+      entity: 'Appointment',
+      entityId: id,
+      status: 'SUCCESS',
+      details: { previousStatus: appointment.status, newStatus: 'CONFIRMED' },
     });
 
     return updated;
@@ -239,5 +279,16 @@ export class AppointmentService {
       providerId,
       slots,
     };
+  }
+
+  static async getAppointmentById(id: string) {
+    return prisma.appointment.findUnique({
+      where: { id },
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true, mrn: true, email: true, phone: true } },
+        provider: { include: { user: { select: { firstName: true, lastName: true } } } },
+        department: true,
+      },
+    });
   }
 }

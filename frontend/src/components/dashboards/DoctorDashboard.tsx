@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import { Encounter, Department } from '@/types';
+import { Encounter, Department, Appointment } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { StateAlert } from '@/components/ui/Alert';
-import { Stethoscope, CheckCircle, FileText, FlaskConical, AlertCircle, Plus } from 'lucide-react';
+import { Stethoscope, CheckCircle, FileText, FlaskConical, AlertCircle, Plus, CalendarCheck, UserCheck } from 'lucide-react';
 
 export function DoctorDashboard() {
   const queryClient = useQueryClient();
   const [selectedEncounter, setSelectedEncounter] = useState<Encounter | null>(null);
+  const [activeTab, setActiveTab] = useState<'consultations' | 'scheduledQueue'>('consultations');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Diagnosis Modal state
@@ -36,10 +37,51 @@ export function DoctorDashboard() {
     queryFn: () => apiFetch<{ success: boolean; data: Encounter[] }>('/encounters'),
   });
 
-  // 2. Departments Query
+  // 2. Doctor Appointments Query (checked-in / scheduled for physician)
+  const appointmentsQuery = useQuery({
+    queryKey: ['doctor-appointments'],
+    queryFn: () => apiFetch<{ success: boolean; data: Appointment[] }>('/appointments'),
+  });
+
+  useEffect(() => {
+    if (selectedEncounter && encountersQuery.data?.data) {
+      const refreshed = encountersQuery.data.data.find((e: any) => e.id === selectedEncounter.id);
+      if (refreshed) {
+        setSelectedEncounter(refreshed);
+      }
+    }
+  }, [encountersQuery.data]);
+
+  // 3. Departments Query
   const departmentsQuery = useQuery({
     queryKey: ['departments'],
     queryFn: () => apiFetch<{ success: boolean; data: Department[] }>('/departments'),
+  });
+
+  // Initiate Consultation Mutation (creates encounter from appointment)
+  const initiateConsultationMutation = useMutation({
+    mutationFn: (appt: Appointment) =>
+      apiFetch<{ success: boolean; data: Encounter }>('/encounters', {
+        method: 'POST',
+        body: JSON.stringify({
+          patientId: appt.patientId,
+          providerId: appt.providerId,
+          appointmentId: appt.id,
+          encounterType: 'OUTPATIENT',
+          notes: `Consultation started for: ${appt.reason}`,
+        }),
+      }),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['doctor-encounters'] });
+      queryClient.invalidateQueries({ queryKey: ['doctor-appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['nurse-encounters'] });
+      setFeedback({ type: 'success', message: `Consultation encounter initiated for ${res.data.patient?.firstName || 'patient'}.` });
+      setSelectedEncounter(res.data);
+      setActiveTab('consultations');
+    },
+    onError: (err: any) => {
+      setFeedback({ type: 'error', message: err.message || 'Failed to initiate consultation.' });
+    },
   });
 
   // Transition Encounter Status Mutation
@@ -67,6 +109,7 @@ export function DoctorDashboard() {
       apiFetch(`/encounters/${selectedEncounter?.id}/diagnoses`, {
         method: 'POST',
         body: JSON.stringify({
+          encounterId: selectedEncounter?.id,
           patientId: selectedEncounter?.patientId,
           providerId: selectedEncounter?.providerId,
           icdCode,
@@ -90,6 +133,7 @@ export function DoctorDashboard() {
       apiFetch(`/encounters/${selectedEncounter?.id}/prescriptions`, {
         method: 'POST',
         body: JSON.stringify({
+          encounterId: selectedEncounter?.id,
           patientId: selectedEncounter?.patientId,
           providerId: selectedEncounter?.providerId,
           medicationName: medName,
@@ -149,6 +193,75 @@ export function DoctorDashboard() {
         />
       )}
 
+      {/* Navigation tabs */}
+      <div className="flex border-b border-slate-200 space-x-6 text-xs">
+        <button
+          onClick={() => setActiveTab('consultations')}
+          className={`pb-3 flex items-center space-x-2 border-b-2 transition ${
+            activeTab === 'consultations' ? 'border-sky-600 text-sky-600 font-semibold' : 'border-transparent text-slate-500'
+          }`}
+        >
+          <Stethoscope className="w-4 h-4" />
+          <span>Active Consultations ({encountersQuery.data?.data?.length || 0})</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('scheduledQueue')}
+          className={`pb-3 flex items-center space-x-2 border-b-2 transition ${
+            activeTab === 'scheduledQueue' ? 'border-sky-600 text-sky-600 font-semibold' : 'border-transparent text-slate-500'
+          }`}
+        >
+          <CalendarCheck className="w-4 h-4" />
+          <span>
+            Scheduled / Checked-In Queue (
+            {appointmentsQuery.data?.data?.filter((a) => !a.encounter && (a.status === 'CONFIRMED' || a.status === 'SCHEDULED')).length || 0}
+            )
+          </span>
+        </button>
+      </div>
+
+      {activeTab === 'scheduledQueue' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900">Arrived & Scheduled Patients</h3>
+            <p className="text-xs text-slate-500 mt-1">Directly initiate or resume physician consultation for scheduled appointments.</p>
+          </div>
+
+          {appointmentsQuery.isLoading ? (
+            <StateAlert type="loading" message="Loading appointment schedule..." />
+          ) : !appointmentsQuery.data?.data?.filter((a) => !a.encounter && (a.status === 'CONFIRMED' || a.status === 'SCHEDULED')).length ? (
+            <StateAlert type="empty" title="Queue Empty" message="No pending appointments awaiting consultation." />
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {appointmentsQuery.data.data
+                .filter((a) => !a.encounter && (a.status === 'CONFIRMED' || a.status === 'SCHEDULED'))
+                .map((appt) => (
+                  <div key={appt.id} className="py-3 flex justify-between items-center text-xs">
+                    <div>
+                      <span className="font-bold text-slate-900">{appt.patient?.firstName} {appt.patient?.lastName}</span>
+                      <span className="ml-2 font-mono text-[11px] text-slate-500">MRN: {appt.patient?.mrn}</span>
+                      <p className="text-slate-600 text-[11px] mt-0.5">
+                        Schedule: {new Date(appt.scheduledStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} | Reason: {appt.reason}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Badge status={appt.status} />
+                      <button
+                        onClick={() => initiateConsultationMutation.mutate(appt)}
+                        disabled={initiateConsultationMutation.isPending}
+                        className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded font-semibold transition disabled:opacity-50 flex items-center space-x-1"
+                      >
+                        <Stethoscope className="w-3.5 h-3.5 mr-1" />
+                        <span>Start Consultation</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'consultations' && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Encounters List */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
@@ -288,6 +401,7 @@ export function DoctorDashboard() {
           )}
         </div>
       </div>
+      )}
 
       {/* Modal: Diagnosis */}
       {showDiagModal && (

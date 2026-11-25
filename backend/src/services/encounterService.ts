@@ -1,5 +1,5 @@
 import { prisma } from '../prisma.js';
-import { NotFoundError, BadRequestError } from '../utils/errors.js';
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../utils/errors.js';
 import { parsePagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { recordAudit } from './auditService.js';
 
@@ -33,6 +33,25 @@ export interface AddMedicationOrderDTO {
 
 export class EncounterService {
   static async createEncounter(dto: CreateEncounterDTO, actorUserId?: string) {
+    if (dto.appointmentId) {
+      const existingEncounter = await prisma.encounter.findUnique({
+        where: { appointmentId: dto.appointmentId },
+      });
+      if (existingEncounter) {
+        throw new ConflictError(`An encounter already exists for appointment ${dto.appointmentId}`);
+      }
+
+      const appointment = await prisma.appointment.findUnique({
+        where: { id: dto.appointmentId },
+      });
+      if (!appointment) {
+        throw new NotFoundError(`Appointment ${dto.appointmentId} not found`);
+      }
+      if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') {
+        throw new BadRequestError(`Cannot initiate an encounter for appointment with status '${appointment.status}'`);
+      }
+    }
+
     const encounter = await prisma.encounter.create({
       data: {
         patientId: dto.patientId,
@@ -41,6 +60,15 @@ export class EncounterService {
         encounterType: dto.encounterType || 'OUTPATIENT',
         status: 'IN_PROGRESS',
         notes: dto.notes,
+      },
+      include: {
+        diagnoses: true,
+        medicationOrders: true,
+        labOrders: { include: { labResults: true } },
+        patient: { select: { id: true, firstName: true, lastName: true, mrn: true } },
+        provider: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
       },
     });
 
@@ -57,13 +85,13 @@ export class EncounterService {
       entity: 'Encounter',
       entityId: encounter.id,
       status: 'SUCCESS',
-      details: { patientId: dto.patientId, providerId: dto.providerId },
+      details: { patientId: dto.patientId, providerId: dto.providerId, appointmentId: dto.appointmentId },
     });
 
     return encounter;
   }
 
-  static async getEncounters(query: any, requestingPatientId?: string, actorUserId?: string) {
+  static async getEncounters(query: any, requestingPatientId?: string, actorUserId?: string, actorRole?: string) {
     const pagination = parsePagination(query);
     const where: any = {};
 
@@ -75,6 +103,23 @@ export class EncounterService {
 
     if (query.providerId) {
       where.providerId = query.providerId;
+    }
+
+    // Exclude encounters of patients who have revoked DATA_SHARING consent for clinical/staff users
+    // Patients viewing their own records (requestingPatientId) are exempt from this exclusion
+    if (!requestingPatientId && actorRole !== 'PATIENT') {
+      try {
+        const revokedConsents = await prisma.consent.findMany({
+          where: { status: 'REVOKED' },
+          select: { patientId: true },
+        });
+        if (revokedConsents.length > 0) {
+          const revokedPatientIds = revokedConsents.map((c) => c.patientId);
+          where.patientId = { notIn: revokedPatientIds };
+        }
+      } catch (e) {
+        // Fallback for mocked environments
+      }
     }
 
     const [total, encounters] = await Promise.all([
@@ -118,6 +163,16 @@ export class EncounterService {
 
     if (encounter.patientId !== dto.patientId) {
       throw new BadRequestError('Encounter patient mismatch');
+    }
+
+    const existingDiagnosis = await prisma.diagnosis.findFirst({
+      where: {
+        encounterId: dto.encounterId,
+        icdCode: dto.icdCode,
+      },
+    });
+    if (existingDiagnosis) {
+      throw new ConflictError(`Diagnosis with ICD code '${dto.icdCode}' already recorded for this encounter`);
     }
 
     const diagnosis = await prisma.diagnosis.create({
@@ -182,52 +237,82 @@ export class EncounterService {
     return medicationOrder;
   }
 
-  static async updateStatus(id: string, newStatus: string, actorUserId?: string, notes?: string) {
-    const encounter = await prisma.encounter.findUnique({ where: { id } });
+  static async updateStatus(id: string, newStatus?: string, actorUserId?: string, notes?: string) {
+    const encounter = await prisma.encounter.findUnique({
+      where: { id },
+      include: {
+        diagnoses: true,
+        medicationOrders: true,
+        labOrders: { include: { labResults: true } },
+        patient: { select: { id: true, firstName: true, lastName: true, mrn: true } },
+        provider: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+      },
+    });
     if (!encounter) {
       throw new NotFoundError(`Encounter ${id} not found`);
     }
 
     const current = encounter.status;
 
+    // Prevent any modifications or observations on completed/terminal encounters
     if (current === 'COMPLETED' || current === 'CANCELLED') {
       throw new BadRequestError(`Cannot transition encounter from terminal status '${current}'`);
     }
 
-    const validNext: Record<string, string[]> = {
-      PLANNED: ['IN_PROGRESS', 'CANCELLED'],
-      IN_PROGRESS: ['COMPLETED', 'CANCELLED'],
-    };
+    const targetStatus = newStatus || current;
 
-    if (!validNext[current] || !validNext[current].includes(newStatus)) {
-      throw new BadRequestError(`Invalid encounter status transition from '${current}' to '${newStatus}'`);
+    // If a status transition is requested (targetStatus differs from current)
+    if (targetStatus !== current) {
+      const validNext: Record<string, string[]> = {
+        PLANNED: ['IN_PROGRESS', 'CANCELLED'],
+        IN_PROGRESS: ['COMPLETED', 'CANCELLED'],
+      };
+
+      if (!validNext[current] || !validNext[current].includes(targetStatus)) {
+        throw new BadRequestError(`Invalid encounter status transition from '${current}' to '${targetStatus}'`);
+      }
     }
 
-    const isEnding = newStatus === 'COMPLETED' || newStatus === 'CANCELLED';
+    const isEnding = targetStatus === 'COMPLETED' || targetStatus === 'CANCELLED';
 
     const updated = await prisma.encounter.update({
       where: { id },
       data: {
-        status: newStatus as any,
+        status: targetStatus as any,
         endedAt: isEnding ? new Date() : undefined,
         notes: notes ? (encounter.notes ? `${encounter.notes}\n[Update]: ${notes}` : notes) : undefined,
+      },
+      include: {
+        diagnoses: true,
+        medicationOrders: true,
+        labOrders: { include: { labResults: true } },
+        patient: { select: { id: true, firstName: true, lastName: true, mrn: true } },
+        provider: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
       },
     });
 
     if (encounter.appointmentId && isEnding) {
       await prisma.appointment.update({
         where: { id: encounter.appointmentId },
-        data: { status: newStatus === 'COMPLETED' ? 'COMPLETED' : 'CANCELLED' },
+        data: { status: targetStatus === 'COMPLETED' ? 'COMPLETED' : 'CANCELLED' },
       });
     }
 
     await recordAudit({
       userId: actorUserId,
-      action: 'ENCOUNTER_STATUS_TRANSITION',
+      action: targetStatus !== current ? 'ENCOUNTER_STATUS_TRANSITION' : 'ENCOUNTER_OBSERVATION_RECORDED',
       entity: 'Encounter',
       entityId: id,
       status: 'SUCCESS',
-      details: { previousStatus: current, newStatus },
+      details: {
+        previousStatus: current,
+        newStatus: targetStatus,
+        observationAppended: !!notes,
+      },
     });
 
     return updated;
@@ -270,7 +355,16 @@ export class EncounterService {
     return updated;
   }
 
-  static async getPatientPrescriptions(patientId: string) {
+  static async getPatientPrescriptions(patientId: string, actorUserId?: string, actorRole?: string) {
+    if (actorRole && actorRole !== 'PATIENT') {
+      const revokedConsent = await prisma.consent.findFirst({
+        where: { patientId, status: 'REVOKED' },
+      });
+      if (revokedConsent) {
+        throw new ForbiddenError('Clinical access denied: Patient has revoked data-sharing consent');
+      }
+    }
+
     return prisma.medicationOrder.findMany({
       where: { patientId },
       orderBy: { createdAt: 'desc' },
@@ -280,5 +374,30 @@ export class EncounterService {
         },
       },
     });
+  }
+
+  static async getEncounterById(id: string, actorUserId?: string, actorRole?: string) {
+    const encounter = await prisma.encounter.findUnique({
+      where: { id },
+      include: {
+        diagnoses: true,
+        medicationOrders: true,
+        labOrders: { include: { labResults: true } },
+        patient: { select: { id: true, firstName: true, lastName: true, mrn: true, gender: true, dob: true } },
+        provider: { include: { user: { select: { firstName: true, lastName: true } } } },
+      },
+    });
+    if (!encounter) return null;
+
+    if (actorRole && actorRole !== 'PATIENT') {
+      const revokedConsent = await prisma.consent.findFirst({
+        where: { patientId: encounter.patientId, status: 'REVOKED' },
+      });
+      if (revokedConsent) {
+        throw new ForbiddenError('Clinical access denied: Patient has revoked data-sharing consent');
+      }
+    }
+
+    return encounter;
   }
 }

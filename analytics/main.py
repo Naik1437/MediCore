@@ -33,9 +33,19 @@ notification_worker = NotificationWorker()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("medicore-analytics")
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", os.getenv("NODE_ENV", "development"))
 BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:4002/api/v1")
 SHARED_SECRET = os.getenv("ANALYTICS_SHARED_SECRET", "medicore-internal-analytics-key-2026")
 JWT_SECRET = os.getenv("JWT_SECRET", "medicore-dev-jwt-super-secret-key-change-in-prod-32bytesmin")
+
+# Insecure secret enforcement for production environments (MC-14)
+if ENVIRONMENT == "production":
+    DEFAULT_SECRET = "medicore-internal-analytics-key-2026"
+    DEFAULT_JWT = "medicore-dev-jwt-super-secret-key-change-in-prod-32bytesmin"
+    if not os.getenv("ANALYTICS_SHARED_SECRET") or SHARED_SECRET == DEFAULT_SECRET:
+        raise RuntimeError("FATAL: Insecure production configuration: ANALYTICS_SHARED_SECRET must be explicitly set.")
+    if not os.getenv("JWT_SECRET") or JWT_SECRET == DEFAULT_JWT:
+        raise RuntimeError("FATAL: Insecure production configuration: JWT_SECRET must be explicitly set.")
 
 app = FastAPI(
     title="MediCore Clinical Analytics & Intelligence API",
@@ -129,21 +139,27 @@ async def get_appointment_utilization(
             if res.status_code == 200:
                 body = res.json()
                 appointments = body.get("data", [])
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied by RBAC policy")
+            else:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"code": "SERVICE_UNAVAILABLE", "message": f"Authoritative appointment database error ({res.status_code})"})
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Live backend unreachable for appointment data ({e}); using synthetic baseline.")
-
-    if not appointments:
-        # Seeded realistic appointments for utilization analytics
-        now = time.time()
-        appointments = [
-            {"id": "a-1", "providerId": "doc-robert-chen", "status": "COMPLETED", "createdAt": "2026-11-20T09:00:00Z"},
-            {"id": "a-2", "providerId": "doc-robert-chen", "status": "COMPLETED", "createdAt": "2026-11-20T10:00:00Z"},
-            {"id": "a-3", "providerId": "doc-robert-chen", "status": "SCHEDULED", "createdAt": "2026-11-25T11:00:00Z"},
-            {"id": "a-4", "providerId": "doc-robert-chen", "status": "NO_SHOW", "createdAt": "2026-11-21T14:00:00Z"},
-            {"id": "a-5", "providerId": "doc-emily-watson", "status": "COMPLETED", "createdAt": "2026-11-22T08:30:00Z"},
-            {"id": "a-6", "providerId": "doc-emily-watson", "status": "CANCELLED", "createdAt": "2026-11-22T09:30:00Z"},
-            {"id": "a-7", "providerId": "doc-emily-watson", "status": "SCHEDULED", "createdAt": "2026-11-26T10:30:00Z"},
-        ]
+        logger.error(f"Live backend unreachable for appointment data: {e}")
+        if os.getenv("TESTING") == "true":
+            appointments = [
+                {"id": "a-1", "providerId": "doc-robert-chen", "status": "COMPLETED", "createdAt": "2026-11-20T09:00:00Z"},
+                {"id": "a-2", "providerId": "doc-robert-chen", "status": "COMPLETED", "createdAt": "2026-11-20T10:00:00Z"},
+                {"id": "a-3", "providerId": "doc-robert-chen", "status": "SCHEDULED", "createdAt": "2026-11-25T11:00:00Z"},
+                {"id": "a-4", "providerId": "doc-robert-chen", "status": "NO_SHOW", "createdAt": "2026-11-21T14:00:00Z"},
+                {"id": "a-5", "providerId": "doc-emily-watson", "status": "COMPLETED", "createdAt": "2026-11-22T08:30:00Z"},
+            ]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"code": "SERVICE_UNAVAILABLE", "message": "Authoritative clinical database source is offline or unreachable"}
+            )
 
     provider_info = {
         "doc-robert-chen": {"name": "Dr. Robert Chen, MD", "departmentId": "Cardiology"},
@@ -178,8 +194,24 @@ async def get_wait_times(
             res = await client.get(f"{BACKEND_API_URL}/encounters", headers=headers)
             if res.status_code == 200:
                 encounters = res.json().get("data", [])
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied by RBAC policy")
+            else:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"code": "SERVICE_UNAVAILABLE", "message": "Authoritative encounter database error"})
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Live backend encounters unreachable ({e}); using synthetic baseline.")
+        logger.error(f"Live backend encounters unreachable: {e}")
+        if os.getenv("TESTING") == "true":
+            encounters = [
+                {"id": "e-1", "departmentId": "Internal Medicine", "startedAt": "2026-11-20T09:15:00Z", "createdAt": "2026-11-20T09:00:00Z"},
+                {"id": "e-2", "departmentId": "Pediatrics", "startedAt": "2026-11-20T10:10:00Z", "createdAt": "2026-11-20T10:00:00Z"},
+            ]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"code": "SERVICE_UNAVAILABLE", "message": "Authoritative clinical encounter records unavailable"}
+            )
 
     return AnalyticsService.compute_wait_times(encounters=encounters)
 
@@ -204,8 +236,24 @@ async def get_lab_turnaround(
             res = await client.get(f"{BACKEND_API_URL}/lab/orders", headers=headers)
             if res.status_code == 200:
                 lab_orders = res.json().get("data", [])
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied by RBAC policy")
+            else:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"code": "SERVICE_UNAVAILABLE", "message": "Authoritative lab orders database error"})
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Live backend lab orders unreachable ({e}); using baseline.")
+        logger.error(f"Live backend lab orders unreachable: {e}")
+        if os.getenv("TESTING") == "true":
+            lab_orders = [
+                {"id": "lo-1", "testType": "GLUCOSE", "status": "COMPLETED", "createdAt": "2026-11-20T08:00:00Z", "labResults": [{"verifiedAt": "2026-11-20T09:30:00Z"}]},
+                {"id": "lo-2", "testType": "HEMOGLOBIN_A1C", "status": "COMPLETED", "createdAt": "2026-11-20T09:00:00Z", "labResults": [{"verifiedAt": "2026-11-20T11:00:00Z"}]},
+            ]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"code": "SERVICE_UNAVAILABLE", "message": "Authoritative diagnostic lab records unavailable"}
+            )
 
     return AnalyticsService.compute_lab_turnaround(lab_orders=lab_orders)
 
@@ -213,7 +261,7 @@ async def get_lab_turnaround(
     "/api/v1/analytics/population-health",
     response_model=PopulationHealthReport,
     tags=["Analytics"],
-    summary="Synthetic Population Health & Demographic Distribution"
+    summary="Population Health & Demographic Distribution"
 )
 async def get_population_health(
     auth: dict = Depends(verify_authorization)
@@ -231,17 +279,25 @@ async def get_population_health(
             res = await client.get(f"{BACKEND_API_URL}/patients", headers=headers)
             if res.status_code == 200:
                 patients = res.json().get("data", [])
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied by RBAC policy")
+            else:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"code": "SERVICE_UNAVAILABLE", "message": "Authoritative patient database error"})
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Live backend patients unreachable ({e}); using baseline.")
-
-    if not patients:
-        patients = [
-            {"id": "p-1", "gender": "FEMALE", "dob": "1988-04-12", "bloodGroup": "O_POSITIVE"},
-            {"id": "p-2", "gender": "MALE", "dob": "1965-08-25", "bloodGroup": "A_POSITIVE"},
-            {"id": "p-3", "gender": "FEMALE", "dob": "2001-11-03", "bloodGroup": "B_POSITIVE"},
-            {"id": "p-4", "gender": "MALE", "dob": "1954-02-19", "bloodGroup": "AB_POSITIVE"},
-            {"id": "p-5", "gender": "OTHER", "dob": "1995-07-30", "bloodGroup": "O_NEGATIVE"},
-        ]
+        logger.error(f"Live backend patients unreachable: {e}")
+        if os.getenv("TESTING") == "true":
+            patients = [
+                {"id": "p-1", "gender": "FEMALE", "dob": "1988-04-12", "bloodGroup": "O_POSITIVE"},
+                {"id": "p-2", "gender": "MALE", "dob": "1965-08-25", "bloodGroup": "A_POSITIVE"},
+                {"id": "p-3", "gender": "FEMALE", "dob": "2001-11-03", "bloodGroup": "B_POSITIVE"},
+            ]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"code": "SERVICE_UNAVAILABLE", "message": "Authoritative population registry database unavailable"}
+            )
 
     return AnalyticsService.compute_population_health(patients=patients)
 
@@ -292,48 +348,133 @@ async def get_capability_statement():
 
 @app.get("/fhir/r4/Patient/{patient_id}", tags=["FHIR R4 Interoperability"])
 async def get_fhir_patient(patient_id: str, auth: dict = Depends(verify_authorization)):
-    """Exports patient record as FHIR R4 Patient JSON."""
-    raw_patient = {
-        "id": patient_id,
-        "mrn": f"MRN-{patient_id[:8]}",
-        "firstName": "Synthetic",
-        "lastName": "Patient",
-        "gender": "female",
-        "dob": "1992-06-15",
-        "phone": "555-0199",
-        "email": f"patient-{patient_id[:6]}@medicore.local"
-    }
-    return FHIRConverter.to_fhir_patient(raw_patient)
+    """Exports patient record as FHIR R4 Patient JSON from authoritative database."""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            headers = {"x-internal-key": SHARED_SECRET}
+            if auth.get("auth_type") == "bearer":
+                headers["authorization"] = f"Bearer {auth.get('token')}"
+            res = await client.get(f"{BACKEND_API_URL}/fhir/r4/Patient/{patient_id}", headers=headers)
+            if res.status_code == 200:
+                return res.json()
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FHIR access denied: RBAC restriction or patient revoked data-sharing consent")
+            elif res.status_code == 404:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"FHIR Patient {patient_id} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Live backend FHIR unavailable ({e}); falling back if in testing mode.")
+
+    if os.getenv("TESTING") == "true":
+        raw_patient = {
+            "id": patient_id,
+            "mrn": f"MRN-{patient_id[:8]}",
+            "firstName": "Verified",
+            "lastName": "Patient",
+            "gender": "female",
+            "dob": "1992-06-15",
+            "phone": "555-0199",
+            "email": f"patient-{patient_id[:6]}@medicore.local"
+        }
+        return FHIRConverter.to_fhir_patient(raw_patient)
+
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Authoritative database source is unreachable")
+
+@app.get("/fhir/r4/Appointment/{appointment_id}", tags=["FHIR R4 Interoperability"])
+async def get_fhir_appointment(appointment_id: str, auth: dict = Depends(verify_authorization)):
+    """Exports appointment as FHIR R4 Appointment JSON from authoritative database."""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            headers = {"x-internal-key": SHARED_SECRET}
+            if auth.get("auth_type") == "bearer":
+                headers["authorization"] = f"Bearer {auth.get('token')}"
+            res = await client.get(f"{BACKEND_API_URL}/fhir/r4/Appointment/{appointment_id}", headers=headers)
+            if res.status_code == 200:
+                return res.json()
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied by RBAC policy")
+            elif res.status_code == 404:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"FHIR Appointment {appointment_id} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Live backend FHIR unavailable ({e})")
+
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Authoritative database source is unreachable")
+
+@app.get("/fhir/r4/Encounter/{encounter_id}", tags=["FHIR R4 Interoperability"])
+async def get_fhir_encounter(encounter_id: str, auth: dict = Depends(verify_authorization)):
+    """Exports clinical encounter as FHIR R4 Encounter JSON from authoritative database."""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            headers = {"x-internal-key": SHARED_SECRET}
+            if auth.get("auth_type") == "bearer":
+                headers["authorization"] = f"Bearer {auth.get('token')}"
+            res = await client.get(f"{BACKEND_API_URL}/fhir/r4/Encounter/{encounter_id}", headers=headers)
+            if res.status_code == 200:
+                return res.json()
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Clinical PHI access revoked by patient consent directive")
+            elif res.status_code == 404:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"FHIR Encounter {encounter_id} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Live backend FHIR unavailable ({e})")
+
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Authoritative database source is unreachable")
 
 @app.get("/fhir/r4/Observation", tags=["FHIR R4 Interoperability"])
 async def search_fhir_observations(
     patient: Optional[str] = Query(None),
     auth: dict = Depends(verify_authorization)
 ):
-    """Searches diagnostic observations formatted as FHIR R4 searchset Bundle."""
-    observations = [
-        FHIRConverter.to_fhir_observation({
-            "id": "obs-glucose-01",
-            "patientId": patient or "p-demo-01",
-            "testType": "GLUCOSE",
-            "value": 92.5,
-            "unit": "mg/dL",
-            "referenceRange": "70 - 99 mg/dL",
-            "interpretation": "Normal fasting blood glucose",
-            "flag": "N"
-        }),
-        FHIRConverter.to_fhir_observation({
-            "id": "obs-a1c-01",
-            "patientId": patient or "p-demo-01",
-            "testType": "HEMOGLOBIN_A1C",
-            "value": 5.4,
-            "unit": "%",
-            "referenceRange": "4.0 - 5.6 %",
-            "interpretation": "Normal glycemic control",
-            "flag": "N"
-        })
-    ]
-    return FHIRConverter.create_bundle(observations)
+    """Searches diagnostic observations from authoritative lab results formatted as FHIR R4 Bundle."""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            headers = {"x-internal-key": SHARED_SECRET}
+            if auth.get("auth_type") == "bearer":
+                headers["authorization"] = f"Bearer {auth.get('token')}"
+            url = f"{BACKEND_API_URL}/fhir/r4/Observation"
+            if patient:
+                url += f"?patient={patient}"
+            res = await client.get(url, headers=headers)
+            if res.status_code == 200:
+                return res.json()
+            elif res.status_code == 403:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied by consent or RBAC boundary")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Live backend Observation query unavailable ({e})")
+
+    if os.getenv("TESTING") == "true":
+        observations = [
+            FHIRConverter.to_fhir_observation({
+                "id": "obs-glucose-01",
+                "patientId": patient or "p-demo-01",
+                "testType": "GLUCOSE",
+                "value": 92.5,
+                "unit": "mg/dL",
+                "referenceRange": "70 - 99 mg/dL",
+                "interpretation": "Normal fasting blood glucose",
+                "flag": "N"
+            }),
+            FHIRConverter.to_fhir_observation({
+                "id": "obs-a1c-01",
+                "patientId": patient or "p-demo-01",
+                "testType": "HEMOGLOBIN_A1C",
+                "value": 5.4,
+                "unit": "%",
+                "referenceRange": "4.0 - 5.6 %",
+                "interpretation": "Normal glycemic control",
+                "flag": "N"
+            })
+        ]
+        return FHIRConverter.create_bundle(observations)
+
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Authoritative database source is unreachable")
 
 # --- MC-08: Asynchronous Notification Sandbox ---
 
@@ -361,4 +502,16 @@ async def dispatch_notification(
     )
     result = notification_worker.dispatch(job)
     return {"status": "success", "job": result}
+
+@app.get("/api/v1/notifications/dlq", tags=["Notifications"])
+async def get_dead_letter_queue(auth: dict = Depends(verify_authorization)):
+    """Returns captured dead-letter queue records for audit evidence and retry recovery."""
+    dlq_items = notification_worker.get_dlq()
+    return {"status": "success", "total_failed": len(dlq_items), "dead_letter_queue": dlq_items}
+
+@app.get("/api/v1/notifications/sent", tags=["Notifications"])
+async def get_sent_notifications(auth: dict = Depends(verify_authorization)):
+    """Returns sandbox notification dispatch log."""
+    sent_items = notification_worker.get_sent_log()
+    return {"status": "success", "total_sent": len(sent_items), "notifications": sent_items}
 

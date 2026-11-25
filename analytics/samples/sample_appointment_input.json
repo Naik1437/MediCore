@@ -1,0 +1,29 @@
+[
+  {
+    "id": "apt-s1",
+    "patientId": "pat-101",
+    "providerId": "doc-101",
+    "status": "COMPLETED",
+    "startTime": "2026-11-25T09:00:00Z",
+    "endTime": "2026-11-25T09:30:00Z",
+    "reason": "Follow-up"
+  },
+  {
+    "id": "apt-s2",
+    "patientId": "pat-102",
+    "providerId": "doc-101",
+    "status": "SCHEDULED",
+    "startTime": "2026-11-25T10:00:00Z",
+    "endTime": "2026-11-25T09:30:00Z",
+    "reason": "Error slot"
+  },
+  {
+    "id": "apt-s3",
+    "patientId": "pat-103",
+    "providerId": "doc-102",
+    "status": "COMPLETED",
+    "startTime": "2026-11-25T11:00:00Z",
+    "endTime": "2026-11-25T11:45:00Z",
+    "reason": "Cardiology consult"
+  }
+]

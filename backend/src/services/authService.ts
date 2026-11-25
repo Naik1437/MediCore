@@ -178,18 +178,46 @@ export class AuthService {
       status: 'SUCCESS',
     });
 
+    const userProfile = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      phone: user.phone,
+      patientProfile: user.patientProfile
+        ? {
+            id: user.patientProfile.id,
+            mrn: user.patientProfile.mrn,
+            bloodGroup: user.patientProfile.bloodGroup,
+            phone: user.patientProfile.phone,
+          }
+        : null,
+      providerProfile: user.providerProfile
+        ? {
+            id: user.providerProfile.id,
+            specialization: user.providerProfile.specialization,
+            licenseNumber: user.providerProfile.licenseNumber,
+            departmentId: user.providerProfile.departmentId,
+          }
+        : null,
+      staffProfile: user.staffProfile
+        ? {
+            id: user.staffProfile.id,
+            employeeId: user.staffProfile.employeeId,
+            jobTitle: user.staffProfile.jobTitle,
+            departmentId: user.staffProfile.departmentId,
+          }
+        : null,
+      patientId: user.patientProfile?.id,
+      providerId: user.providerProfile?.id,
+      staffId: user.staffProfile?.id,
+    };
+
     return {
       accessToken,
       refreshToken: rawRefreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        patientId: user.patientProfile?.id,
-        providerId: user.providerProfile?.id,
-      },
+      user: userProfile,
     };
   }
 
@@ -268,9 +296,46 @@ export class AuthService {
 
     const newAccessToken = generateAccessToken(tokenPayload);
 
+    const userProfile = {
+      id: session.user.id,
+      email: session.user.email,
+      firstName: session.user.firstName,
+      lastName: session.user.lastName,
+      role: session.user.role,
+      phone: session.user.phone,
+      patientProfile: session.user.patientProfile
+        ? {
+            id: session.user.patientProfile.id,
+            mrn: session.user.patientProfile.mrn,
+            bloodGroup: session.user.patientProfile.bloodGroup,
+            phone: session.user.patientProfile.phone,
+          }
+        : null,
+      providerProfile: session.user.providerProfile
+        ? {
+            id: session.user.providerProfile.id,
+            specialization: session.user.providerProfile.specialization,
+            licenseNumber: session.user.providerProfile.licenseNumber,
+            departmentId: session.user.providerProfile.departmentId,
+          }
+        : null,
+      staffProfile: session.user.staffProfile
+        ? {
+            id: session.user.staffProfile.id,
+            employeeId: session.user.staffProfile.employeeId,
+            jobTitle: session.user.staffProfile.jobTitle,
+            departmentId: session.user.staffProfile.departmentId,
+          }
+        : null,
+      patientId: session.user.patientProfile?.id,
+      providerId: session.user.providerProfile?.id,
+      staffId: session.user.staffProfile?.id,
+    };
+
     return {
       accessToken: newAccessToken,
       refreshToken: newRawRefreshToken,
+      user: userProfile,
     };
   }
 
@@ -321,6 +386,11 @@ export class AuthService {
       throw new NotFoundError('User profile not found');
     }
 
-    return user;
+    return {
+      ...user,
+      patientId: user.patientProfile?.id,
+      providerId: user.providerProfile?.id,
+      staffId: user.staffProfile?.id,
+    };
   }
 }

@@ -15,7 +15,7 @@ export function PatientDashboard() {
   const [activeTab, setActiveTab] = useState<'appointments' | 'prescriptions' | 'labs' | 'billing' | 'consent'>('appointments');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const patientId = user?.patientProfile?.id;
+  const patientId = user?.patientProfile?.id || user?.patientId;
 
   // 1. Appointments Query
   const appointmentsQuery = useQuery({
@@ -87,10 +87,31 @@ export function PatientDashboard() {
       apiFetch(`/consents/${consentId}/revoke`, { method: 'POST' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patient-consents'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-encounters'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-prescriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-lab-results'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
       setActionMessage({ type: 'success', text: 'Data sharing consent has been revoked.' });
     },
     onError: (err: any) => {
       setActionMessage({ type: 'error', text: err.message || 'Failed to revoke consent.' });
+    },
+  });
+
+  // Grant Consent Mutation
+  const grantConsentMutation = useMutation({
+    mutationFn: (consentId: string) =>
+      apiFetch(`/consents/${consentId}/grant`, { method: 'POST' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient-consents'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-encounters'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-prescriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-lab-results'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
+      setActionMessage({ type: 'success', text: 'Data sharing access has been granted and restored.' });
+    },
+    onError: (err: any) => {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to grant consent.' });
     },
   });
 
@@ -376,7 +397,7 @@ export function PatientDashboard() {
                       Granted: {new Date(c.grantedAt).toLocaleDateString()} {c.notes && `• Note: ${c.notes}`}
                     </p>
                   </div>
-                  {c.status === 'GRANTED' && (
+                  {c.status === 'GRANTED' ? (
                     <button
                       onClick={() => revokeConsentMutation.mutate(c.id)}
                       disabled={revokeConsentMutation.isPending}
@@ -384,6 +405,15 @@ export function PatientDashboard() {
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       <span>Revoke Access</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => grantConsentMutation.mutate(c.id)}
+                      disabled={grantConsentMutation.isPending}
+                      className="px-3 py-1.5 border border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded text-xs font-semibold transition disabled:opacity-50 flex items-center space-x-1"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Grant Access</span>
                     </button>
                   )}
                 </div>

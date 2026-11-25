@@ -6,6 +6,8 @@ Targeted Tests for MediCore Batch 3:
 """
 
 import pytest
+import os
+os.environ["TESTING"] = "true"
 from fastapi.testclient import TestClient
 from analytics.main import app, SHARED_SECRET
 from analytics.processor import ClinicalDataProcessor
@@ -221,3 +223,25 @@ def test_mc08_notification_worker_failure_handling():
     assert res["status"] == "FAILED"
     assert res["attempts"] == 2
     assert "Invalid delivery address" in res["last_error"]
+    assert len(worker.get_dlq()) == 1
+
+def test_mc08_notification_dlq_endpoint():
+    headers = {"x-internal-key": SHARED_SECRET}
+    # Dispatch an invalid notification to populate DLQ
+    client.post("/api/v1/notifications/send", json={"recipient": "bad-email-no-at", "channel": "EMAIL"}, headers=headers)
+    res = client.get("/api/v1/notifications/dlq", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert "dead_letter_queue" in data
+    assert len(data["dead_letter_queue"]) >= 1
+
+def test_mc08_notification_sent_endpoint():
+    headers = {"x-internal-key": SHARED_SECRET}
+    client.post("/api/v1/notifications/send", json={"recipient": "patient@hospital.org", "channel": "EMAIL"}, headers=headers)
+    res = client.get("/api/v1/notifications/sent", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert "notifications" in data
+    assert len(data["notifications"]) >= 1

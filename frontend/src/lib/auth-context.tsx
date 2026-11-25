@@ -17,6 +17,41 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function normalizeUserProfile(rawUser: any): User {
+  if (!rawUser) return rawUser;
+
+  const patientProfile = rawUser.patientProfile || (rawUser.patientId ? {
+    id: rawUser.patientId,
+    mrn: rawUser.mrn || 'N/A',
+    bloodGroup: rawUser.bloodGroup,
+    phone: rawUser.phone || '',
+  } : null);
+
+  const providerProfile = rawUser.providerProfile || (rawUser.providerId ? {
+    id: rawUser.providerId,
+    specialization: rawUser.specialization || '',
+    licenseNumber: rawUser.licenseNumber || '',
+    departmentId: rawUser.departmentId || '',
+  } : null);
+
+  const staffProfile = rawUser.staffProfile || (rawUser.staffId ? {
+    id: rawUser.staffId,
+    employeeId: rawUser.employeeId || '',
+    jobTitle: rawUser.jobTitle || '',
+    departmentId: rawUser.departmentId || '',
+  } : null);
+
+  return {
+    ...rawUser,
+    patientProfile,
+    providerProfile,
+    staffProfile,
+    patientId: patientProfile?.id || rawUser.patientId || null,
+    providerId: providerProfile?.id || rawUser.providerId || null,
+    staffId: staffProfile?.id || rawUser.staffId || null,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
@@ -36,8 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await apiFetch<{ success: boolean; data: User }>('/auth/me');
         if (res?.data) {
-          setUser(res.data);
-          setRole(res.data.role);
+          const normalized = normalizeUserProfile(res.data);
+          setUser(normalized);
+          setRole(normalized.role);
         }
       } catch (err) {
         // If expired and refresh fails, clear tokens
@@ -57,8 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('medicore_access_token', tokens.accessToken);
     localStorage.setItem('medicore_refresh_token', tokens.refreshToken);
     setAccessToken(tokens.accessToken);
-    setUser(userData);
-    setRole(userData.role);
+    const normalized = normalizeUserProfile(userData);
+    setUser(normalized);
+    setRole(normalized.role);
   };
 
   const logout = async () => {
@@ -85,8 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await apiFetch<{ success: boolean; data: User }>('/auth/me');
       if (res?.data) {
-        setUser(res.data);
-        setRole(res.data.role);
+        const normalized = normalizeUserProfile(res.data);
+        setUser(normalized);
+        setRole(normalized.role);
       }
     } catch (e) {
       // ignore

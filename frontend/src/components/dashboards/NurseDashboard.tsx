@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import { Encounter, Department } from '@/types';
+import { Encounter, Department, Appointment } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { StateAlert } from '@/components/ui/Alert';
-import { HeartPulse, FlaskConical, FileText, CheckCircle2 } from 'lucide-react';
+import { HeartPulse, FlaskConical, FileText, CheckCircle2, UserCheck, Stethoscope } from 'lucide-react';
 
 export function NurseDashboard() {
   const queryClient = useQueryClient();
   const [selectedEncounter, setSelectedEncounter] = useState<Encounter | null>(null);
+  const [activeTab, setActiveTab] = useState<'queue' | 'triageAppointments'>('queue');
   const [notesUpdate, setNotesUpdate] = useState('');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -25,10 +26,51 @@ export function NurseDashboard() {
     queryFn: () => apiFetch<{ success: boolean; data: Encounter[] }>('/encounters'),
   });
 
-  // 2. Departments Query
+  // 2. Checked-in Appointments Query (for initiating triage encounter)
+  const appointmentsQuery = useQuery({
+    queryKey: ['nurse-appointments'],
+    queryFn: () => apiFetch<{ success: boolean; data: Appointment[] }>('/appointments'),
+  });
+
+  // 3. Departments Query
   const departmentsQuery = useQuery({
     queryKey: ['departments'],
     queryFn: () => apiFetch<{ success: boolean; data: Department[] }>('/departments'),
+  });
+
+  useEffect(() => {
+    if (selectedEncounter && encountersQuery.data?.data) {
+      const refreshed = encountersQuery.data.data.find((e: any) => e.id === selectedEncounter.id);
+      if (refreshed) {
+        setSelectedEncounter(refreshed);
+      }
+    }
+  }, [encountersQuery.data]);
+
+  // Start Encounter from Checked-In Appointment Mutation
+  const startEncounterMutation = useMutation({
+    mutationFn: (appt: Appointment) =>
+      apiFetch<{ success: boolean; data: Encounter }>('/encounters', {
+        method: 'POST',
+        body: JSON.stringify({
+          patientId: appt.patientId,
+          providerId: appt.providerId,
+          appointmentId: appt.id,
+          encounterType: 'OUTPATIENT',
+          notes: `Triage initiated by nursing staff for: ${appt.reason}`,
+        }),
+      }),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['nurse-encounters'] });
+      queryClient.invalidateQueries({ queryKey: ['nurse-appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['doctor-encounters'] });
+      setFeedback({ type: 'success', message: `Clinical encounter initiated for ${res.data.patient?.firstName || 'patient'}. Ready for triage & consultation.` });
+      setSelectedEncounter(res.data);
+      setActiveTab('queue');
+    },
+    onError: (err: any) => {
+      setFeedback({ type: 'error', message: err.message || 'Failed to initiate encounter.' });
+    },
   });
 
   // Update Encounter Notes Mutation
@@ -88,6 +130,75 @@ export function NurseDashboard() {
         />
       )}
 
+      {/* Navigation tabs */}
+      <div className="flex border-b border-slate-200 space-x-6 text-xs">
+        <button
+          onClick={() => setActiveTab('queue')}
+          className={`pb-3 flex items-center space-x-2 border-b-2 transition ${
+            activeTab === 'queue' ? 'border-sky-600 text-sky-600 font-semibold' : 'border-transparent text-slate-500'
+          }`}
+        >
+          <HeartPulse className="w-4 h-4" />
+          <span>Active Encounters ({encountersQuery.data?.data?.length || 0})</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('triageAppointments')}
+          className={`pb-3 flex items-center space-x-2 border-b-2 transition ${
+            activeTab === 'triageAppointments' ? 'border-sky-600 text-sky-600 font-semibold' : 'border-transparent text-slate-500'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>
+            Checked-In Waiting Triage (
+            {appointmentsQuery.data?.data?.filter((a) => !a.encounter && (a.status === 'CONFIRMED' || a.status === 'SCHEDULED')).length || 0}
+            )
+          </span>
+        </button>
+      </div>
+
+      {activeTab === 'triageAppointments' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900">Arrived Patients Awaiting Encounter Initiation</h3>
+            <p className="text-xs text-slate-500 mt-1">Initiate clinical encounter to begin nursing triage, vital signs recording and consultation queueing.</p>
+          </div>
+
+          {appointmentsQuery.isLoading ? (
+            <StateAlert type="loading" message="Loading appointments queue..." />
+          ) : !appointmentsQuery.data?.data?.filter((a) => !a.encounter && (a.status === 'CONFIRMED' || a.status === 'SCHEDULED')).length ? (
+            <StateAlert type="empty" title="No Pending Check-Ins" message="All checked-in patients have encounters initiated or no new arrivals." />
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {appointmentsQuery.data.data
+                .filter((a) => !a.encounter && (a.status === 'CONFIRMED' || a.status === 'SCHEDULED'))
+                .map((appt) => (
+                  <div key={appt.id} className="py-3 flex justify-between items-center text-xs">
+                    <div>
+                      <span className="font-bold text-slate-900">{appt.patient?.firstName} {appt.patient?.lastName}</span>
+                      <span className="ml-2 font-mono text-[11px] text-slate-500">MRN: {appt.patient?.mrn}</span>
+                      <p className="text-slate-600 text-[11px] mt-0.5">
+                        Attending: Dr. {appt.provider?.user?.firstName} {appt.provider?.user?.lastName} | Reason: {appt.reason}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Badge status={appt.status} />
+                      <button
+                        onClick={() => startEncounterMutation.mutate(appt)}
+                        disabled={startEncounterMutation.isPending}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-semibold transition disabled:opacity-50 flex items-center space-x-1"
+                      >
+                        <Stethoscope className="w-3.5 h-3.5 mr-1" />
+                        <span>Initiate Encounter</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'queue' && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Encounters Queue */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
@@ -174,6 +285,7 @@ export function NurseDashboard() {
           )}
         </div>
       </div>
+      )}
 
       {/* Lab Modal */}
       {showLabModal && (

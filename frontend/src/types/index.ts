@@ -18,6 +18,9 @@ export interface User {
   patientProfile?: { id: string; mrn: string; bloodGroup?: string; phone: string } | null;
   providerProfile?: { id: string; specialization: string; licenseNumber: string; departmentId: string } | null;
   staffProfile?: { id: string; employeeId: string; jobTitle: string; departmentId: string } | null;
+  patientId?: string | null;
+  providerId?: string | null;
+  staffId?: string | null;
 }
 
 export interface Department {
@@ -79,6 +82,7 @@ export interface Appointment {
   patient?: { id: string; firstName: string; lastName: string; mrn: string };
   provider?: { user: { firstName: string; lastName: string } };
   department?: { id: string; name: string; code: string };
+  encounter?: { id: string; status: string } | null;
 }
 
 export interface Encounter {

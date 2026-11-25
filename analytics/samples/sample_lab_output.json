@@ -1,0 +1,72 @@
+{
+  "valid_records": [
+    {
+      "id": "lab-s1",
+      "patientId": "pat-101",
+      "testType": "GLUCOSE",
+      "value": 95.0,
+      "unit": "mg/dL",
+      "flag": "NORMAL",
+      "status": "FINAL",
+      "timestamp": "2026-11-25T10:00:00+00:00",
+      "referenceRange": "70.0 - 99.0 mg/dL"
+    },
+    {
+      "id": "lab-s2",
+      "patientId": "pat-102",
+      "testType": "GLUCOSE",
+      "value": 145.0,
+      "unit": "mg/dL",
+      "flag": "HIGH",
+      "status": "FINAL",
+      "timestamp": "2026-11-25T10:05:00+00:00",
+      "referenceRange": "70.0 - 99.0 mg/dL"
+    },
+    {
+      "id": "lab-s3",
+      "patientId": "pat-103",
+      "testType": "HEMOGLOBIN_A1C",
+      "value": 7.2,
+      "unit": "%",
+      "flag": "HIGH",
+      "status": "FINAL",
+      "timestamp": "2026-11-25T10:10:00+00:00",
+      "referenceRange": "4.0 - 5.6 %"
+    }
+  ],
+  "report": {
+    "timestamp": "2026-11-25T07:37:46.059751+00:00",
+    "dataset_type": "LABORATORY_RESULTS",
+    "total_records": 5,
+    "valid_records": 3,
+    "invalid_records": 2,
+    "validation_issues": [
+      {
+        "record_id": "lab-s4",
+        "field": "unit",
+        "issue_type": "INVALID_UNIT",
+        "message": "Unit 'INVALID_U' is invalid for test GLUCOSE. Expected: ['mg/dL', 'mmol/L']",
+        "raw_value": "INVALID_U"
+      },
+      {
+        "record_id": "lab-s5",
+        "field": "value",
+        "issue_type": "MISSING",
+        "message": "Numeric result value is required",
+        "raw_value": null
+      }
+    ],
+    "metrics": {
+      "abnormal_results_count": 2,
+      "critical_results_count": 0,
+      "status_distribution": {
+        "FINAL": 5
+      },
+      "tests_processed": [
+        "GLUCOSE",
+        "HEMOGLOBIN_A1C"
+      ]
+    },
+    "processing_time_ms": 0.45
+  }
+}

@@ -136,6 +136,44 @@ describe('Authentication & Input Validation', () => {
     expect(res.body.data.accessToken).toBeDefined();
     expect(res.body.data.refreshToken).toBeDefined();
     expect(res.body.data.user.role).toBe(UserRole.DOCTOR);
+    expect(res.body.data.user.providerProfile).toBeDefined();
+    expect(res.body.data.user.providerProfile.id).toBe('prov-1');
+  });
+
+  it('login returns structured patientProfile with id and mrn for PATIENT role', async () => {
+    const mockPatientUser = {
+      id: 'patient-user-1',
+      email: 'alice.morgan@medicore.local',
+      passwordHash: await bcrypt.hash('Password123!', 10),
+      firstName: 'Alice',
+      lastName: 'Morgan',
+      role: UserRole.PATIENT,
+      isActive: true,
+      patientProfile: {
+        id: 'patient-profile-1',
+        mrn: 'MRN-2026-0001',
+        bloodGroup: 'O_POSITIVE',
+        phone: '555-0199',
+      },
+      providerProfile: null,
+      staffProfile: null,
+    };
+
+    (prisma.user.findUnique as any).mockResolvedValue(mockPatientUser);
+    (prisma.refreshSession.create as any).mockResolvedValue({ id: 'session-2' });
+
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'alice.morgan@medicore.local',
+        password: 'Password123!',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.patientProfile).toBeDefined();
+    expect(res.body.data.user.patientProfile.id).toBe('patient-profile-1');
+    expect(res.body.data.user.patientProfile.mrn).toBe('MRN-2026-0001');
+    expect(res.body.data.user.patientId).toBe('patient-profile-1');
   });
 
   it('detects refresh token reuse and revokes all active sessions for that user', async () => {
@@ -157,5 +195,44 @@ describe('Authentication & Input Validation', () => {
       where: { userId: 'user-attacked' },
       data: { revokedAt: expect.any(Date) },
     });
+  });
+
+  it('GET /api/v1/auth/me returns consistent patientProfile and MRN', async () => {
+    const mockUserWithProfile = {
+      id: 'patient-user-1',
+      email: 'alice.morgan@medicore.local',
+      role: UserRole.PATIENT,
+      firstName: 'Alice',
+      lastName: 'Morgan',
+      phone: '555-0199',
+      isActive: true,
+      patientProfile: {
+        id: 'patient-profile-1',
+        mrn: 'MRN-2026-0001',
+        bloodGroup: 'O_POSITIVE',
+        phone: '555-0199',
+      },
+      providerProfile: null,
+      staffProfile: null,
+    };
+
+    (prisma.user.findUnique as any).mockResolvedValue(mockUserWithProfile);
+
+    const token = generateAccessToken({
+      userId: 'patient-user-1',
+      email: 'alice.morgan@medicore.local',
+      role: UserRole.PATIENT,
+      patientId: 'patient-profile-1',
+    });
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.patientProfile).toBeDefined();
+    expect(res.body.data.patientProfile.mrn).toBe('MRN-2026-0001');
+    expect(res.body.data.patientProfile.id).toBe('patient-profile-1');
   });
 });

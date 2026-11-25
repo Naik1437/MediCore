@@ -31,15 +31,24 @@ export function createApp() {
 
   // OpenAPI / Swagger Documentation
   try {
-    const swaggerDocPath = join(process.cwd(), 'src', 'docs', 'swagger.json');
-    const fallbackPath = join(process.cwd(), 'dist', 'docs', 'swagger.json');
+    const candidatePaths = [
+      join(__dirname, 'docs', 'swagger.json'),
+      join(process.cwd(), 'backend', 'src', 'docs', 'swagger.json'),
+      join(process.cwd(), 'src', 'docs', 'swagger.json'),
+      join(process.cwd(), 'dist', 'docs', 'swagger.json'),
+    ];
     let swaggerDocument;
-    try {
-      swaggerDocument = JSON.parse(readFileSync(swaggerDocPath, 'utf8'));
-    } catch {
-      swaggerDocument = JSON.parse(readFileSync(fallbackPath, 'utf8'));
+    for (const p of candidatePaths) {
+      try {
+        swaggerDocument = JSON.parse(readFileSync(p, 'utf8'));
+        if (swaggerDocument) break;
+      } catch {}
     }
-    app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+    if (swaggerDocument) {
+      app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+      app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+      app.get('/openapi.json', (req, res) => res.json(swaggerDocument));
+    }
   } catch (err) {
     // Fallback if running in minimal test environment
   }
