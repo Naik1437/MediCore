@@ -43,8 +43,18 @@ jobs:
 
       - name: Secret Scanning & Credential Safety Verification
         run: |
-          ! grep -rn "BEGIN RSA PRIVATE KEY" . --exclude-dir={.git,node_modules,dist,build} || exit 1
-          ! grep -rn "BEGIN OPENSSH PRIVATE KEY" . --exclude-dir={.git,node_modules,dist,build} || exit 1
+          set +e
+          matches=$(git grep -nE -e '-----[B]EGIN ([A-Z0-9]+ )*PRIVATE KEY-----')
+          exit_code=$?
+          set -e
+          if [ $exit_code -eq 0 ]; then
+            echo "Private key detected in repository:" >&2
+            echo "$matches" >&2
+            exit 1
+          elif [ $exit_code -ne 1 ]; then
+            echo "Scanner error: git grep exited with code $exit_code" >&2
+            exit $exit_code
+          fi
 
   backend-verification:
     name: Backend Compilation, Migrations & Integration Tests
