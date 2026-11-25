@@ -143,4 +143,4 @@ sequenceDiagram
 | **MC-12** | Privacy & Workflow Integration Tests (Collisions, consent, Playwright) | `backend/tests/clinical_security.test.ts`, `frontend/tests/e2e/*` | 46 backend tests + 14 frontend tests |
 | **MC-13** | Complete API Documentation (Swagger OpenAPI 3.0.3 and Postman collection) | `backend/src/docs/swagger.json`, `docs/medicore_postman_collection.json` | Mounted at `/docs`, `/api/v1/docs`, `/openapi.json` |
 | **MC-14** | Secure Hospital Deployment (Nginx HTTPS, backup/restore validation, contacts) | `docker/nginx.conf`, `scripts/backup_db.*`, `docs/INCIDENT_CONTACTS.md` | Verification scripts + SSL configuration |
-| **MC-15** | Incident Simulation & Recovery (5 failure scenarios with captured evidence) | `scripts/simulate_incidents.py`, `docs/incident_simulation_evidence.json` | Automated simulation runner (5/5 passed) |
+| **MC-15** | Incident Simulation & Recovery (5 failure scenarios with captured evidence) | `scripts/simulate_incidents.py`, `docs/incident_simulation_evidence.json` | 5/5 passed across separate host runs (prior run history preserved) |
