@@ -5,15 +5,18 @@ const env = process.env.NODE_ENV || 'development';
 const isProd = env === 'production';
 
 const DEFAULT_JWT_SECRET = 'medicore-dev-jwt-super-secret-key-change-in-prod-32bytesmin';
-const jwtSecret = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public';
+const DEFAULT_ANALYTICS_SECRET = 'medicore-internal-analytics-key-2026';
+const DEFAULT_DATABASE_URL = 'postgresql://medicore_user:medicore_secure_pass_2026@localhost:5432/medicore_db?schema=public';
+const jwtSecret = process.env.JWT_SECRET || (isProd ? '' : DEFAULT_JWT_SECRET);
+const databaseUrl = process.env.DATABASE_URL || (isProd ? '' : DEFAULT_DATABASE_URL);
+const analyticsSharedSecret = process.env.ANALYTICS_SHARED_SECRET || (isProd ? '' : DEFAULT_ANALYTICS_SECRET);
 
 // Fail-fast in production if default/insecure credentials remain configured
 if (isProd) {
-  if (!process.env.JWT_SECRET || jwtSecret === DEFAULT_JWT_SECRET) {
+  if (!jwtSecret || jwtSecret === DEFAULT_JWT_SECRET) {
     throw new Error('FATAL: Insecure production configuration: JWT_SECRET must be explicitly set to a cryptographically strong value in production.');
   }
-  if (!process.env.DATABASE_URL || databaseUrl.includes('medicore_secure_pass_2026')) {
+  if (!databaseUrl || databaseUrl.includes('medicore_secure_pass_2026')) {
     throw new Error('FATAL: Insecure production configuration: DATABASE_URL cannot use default development credentials in production.');
   }
 }
@@ -29,4 +32,5 @@ export const config = {
   bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10),
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3002',
   databaseUrl,
+  analyticsSharedSecret,
 };

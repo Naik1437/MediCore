@@ -34,9 +34,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("medicore-analytics")
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", os.getenv("NODE_ENV", "development"))
+IS_PRODUCTION = os.getenv("NODE_ENV", "development") == "production"
+
+def configured_secret(name: str, development_value: str) -> str:
+    value = os.getenv(name)
+    if IS_PRODUCTION and not value:
+        raise RuntimeError(f"FATAL: {name} must be explicitly configured in production")
+    return value or development_value
+
 BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:4002/api/v1")
-SHARED_SECRET = os.getenv("ANALYTICS_SHARED_SECRET", "medicore-internal-analytics-key-2026")
-JWT_SECRET = os.getenv("JWT_SECRET", "medicore-dev-jwt-super-secret-key-change-in-prod-32bytesmin")
+SHARED_SECRET = configured_secret("ANALYTICS_SHARED_SECRET", "medicore-internal-analytics-key-2026")
+JWT_SECRET = configured_secret("JWT_SECRET", "medicore-dev-jwt-super-secret-key-change-in-prod-32bytesmin")
 
 # Insecure secret enforcement for production environments (MC-14)
 if ENVIRONMENT == "production":

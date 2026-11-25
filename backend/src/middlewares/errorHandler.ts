@@ -28,6 +28,10 @@ export function errorHandler(
     statusCode = 401;
     code = 'INVALID_TOKEN';
     message = err.message;
+  } else if (err?.name === 'PrismaClientInitializationError' || err?.code === 'P1001' || err?.code === 'P1017') {
+    statusCode = 503;
+    code = 'SERVICE_UNAVAILABLE';
+    message = 'Database service is unavailable';
   } else if (err?.code === 'P2002') {
     // Prisma unique constraint violation
     statusCode = 409;

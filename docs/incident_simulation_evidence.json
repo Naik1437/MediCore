@@ -1,60 +1,82 @@
 {
-  "execution_timestamp": "2026-11-25T07:37:14.029034+00:00",
+  "execution_timestamp": "2026-11-25T09:33:27.189761+00:00",
   "scenarios": [
     {
       "scenario": 1,
-      "title": "Unauthorized Record Access",
-      "status": "VERIFIED_OFFLINE",
-      "executed_at": "2026-11-25T07:37:20.592024+00:00",
+      "title": "Unauthorized record access",
+      "status": "PASS",
+      "executed_at": "2026-11-25T09:33:27.667678+00:00",
       "evidence": {
-        "error": "timed out"
+        "http_status": 401,
+        "payload": {
+          "success": false,
+          "error": {
+            "code": "UNAUTHORIZED",
+            "message": "Bearer authentication token is required"
+          },
+          "requestId": "253bc7f7-e320-422d-9695-21c633c2f213"
+        }
       }
     },
     {
       "scenario": 2,
-      "title": "Appointment Collision",
-      "status": "VERIFIED",
-      "executed_at": "2026-11-25T07:37:26.951591+00:00",
+      "title": "Appointment collision",
+      "status": "FAIL",
+      "executed_at": "2026-11-25T09:33:30.644553+00:00",
       "evidence": {
-        "constraint": "appointment_no_overlap",
-        "error": "timed out"
+        "first_status": 409,
+        "second_status": 409,
+        "constraint": "appointment_no_overlap"
       }
     },
     {
       "scenario": 3,
-      "title": "Notification DLQ Isolation",
+      "title": "Notification sandbox DLQ",
       "status": "PASS",
-      "executed_at": "2026-11-25T07:37:26.957334+00:00",
+      "executed_at": "2026-11-25T09:33:30.644553+00:00",
       "evidence": {
-        "job_id": "5fc553d3-ded2-4aaf-8064-454d0348a1d3",
-        "status": "FAILED",
-        "attempts": 2,
-        "last_error": "Invalid delivery address: invalid-malformed-address",
-        "dlq_count": 1
+        "job": {
+          "job_id": "f5558b08-3628-4413-879f-0ad87a94528f",
+          "idempotency_key": "mc15-dlq",
+          "recipient": "invalid-malformed-address",
+          "channel": "EMAIL",
+          "template_id": "MC15",
+          "status": "FAILED",
+          "attempts": 2,
+          "created_at": "2026-11-25T09:33:30.644553+00:00",
+          "delivered_at": null,
+          "last_error": "Invalid delivery address: invalid-malformed-address"
+        },
+        "dlq_count": 1,
+        "delivery_mode": "local deterministic sandbox"
       }
     },
     {
       "scenario": 4,
-      "title": "Lab Result Mismatch Integrity",
-      "status": "PASS",
-      "executed_at": "2026-11-25T07:37:26.957334+00:00",
+      "title": "Lab result patient mismatch",
+      "status": "FAIL",
+      "executed_at": "2026-11-25T09:33:33.583400+00:00",
       "evidence": {
-        "rule": "labOrder.patientId === dto.patientId",
-        "action": "LAB_RESULT_PATIENT_MISMATCH_REJECTED",
-        "expected_code": 400,
-        "detail": "Integrity violation: The specified patient does not match the patient associated with this laboratory order"
+        "error": "no existing synthetic encounter available to create a lab order",
+        "observed": false
       }
     },
     {
       "scenario": 5,
-      "title": "Database Outage Resilience",
+      "title": "Database outage resilience",
       "status": "PASS",
-      "executed_at": "2026-11-25T07:37:26.957334+00:00",
+      "executed_at": "2026-11-25T09:33:36.348217+00:00",
       "evidence": {
-        "error_class": "PrismaClientInitializationError",
-        "http_response": 503,
-        "status_code": "SERVICE_UNAVAILABLE",
-        "handling": "Express global errorHandler catches connection failure and returns structured RFC-7807 JSON envelope."
+        "http_status": 503,
+        "payload": {
+          "success": false,
+          "error": {
+            "code": "SERVICE_UNAVAILABLE",
+            "message": "Database service is unavailable"
+          },
+          "requestId": "67ada043-3ba2-4d1c-b057-8f5d0d3ab08c"
+        },
+        "observed": true
       }
     }
   ]

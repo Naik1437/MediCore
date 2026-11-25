@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import { config } from '../config/env.js';
 
 const ANALYTICS_SERVICE_URL = process.env.ANALYTICS_SERVICE_URL || 'http://localhost:8002';
-const ANALYTICS_SHARED_SECRET = process.env.ANALYTICS_SHARED_SECRET || 'medicore-internal-analytics-key-2026';
+const ANALYTICS_SHARED_SECRET = config.analyticsSharedSecret;
 
 export class AnalyticsController {
   /**
