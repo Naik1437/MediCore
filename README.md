@@ -242,6 +242,19 @@ cp .env.example .env
 ```
 > **Security Note:** The `.env` and `.env.seeded_accounts` files are excluded from version control via `.gitignore`. Never commit secrets to source control.
 
+### Generate Local TLS Certificates (HTTPS Gateway)
+The `medicore-gateway` container terminates local HTTPS on `127.0.0.1:8088` using self-signed certificates mounted from `docker/certs/` (ignored by Git). Generate them before starting Docker:
+
+```bash
+# Linux / macOS / Git Bash on Windows (MSYS_NO_PATHCONV=1 prevents path-mangling of /CN=localhost)
+mkdir -p docker/certs
+MSYS_NO_PATHCONV=1 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout docker/certs/server.key \
+  -out docker/certs/server.crt \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
 ### Launch Containers
 
 ```bash
@@ -256,7 +269,7 @@ docker compose ps
 
 | Service | Port | Local URL | Description |
 |:---|:---:|:---|:---|
-| **Loopback Gateway** | `8088` | [http://127.0.0.1:8088](http://127.0.0.1:8088) | Unified Nginx same-origin reverse proxy |
+| **Loopback Gateway** | `8088` | [https://127.0.0.1:8088](https://127.0.0.1:8088) | Unified Nginx same-origin HTTPS reverse proxy |
 | **Web Frontend** | `3002` | [http://localhost:3002](http://localhost:3002) | Next.js role-based dashboard portal |
 | **Backend API Gateway** | `4002` | [http://localhost:4002/api/v1](http://localhost:4002/api/v1) | Express REST API base endpoint |
 | **API Documentation** | `4002` | [http://localhost:4002/docs](http://localhost:4002/docs) | Interactive Swagger UI / OpenAPI 3.0 spec |

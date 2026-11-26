@@ -27,6 +27,8 @@ function parseCorsOrigin(val?: string) {
     'http://localhost:8088',
     'http://127.0.0.1:3002',
     'http://127.0.0.1:8088',
+    'https://localhost:8088',
+    'https://127.0.0.1:8088',
   ];
   const configuredOrigins = (val || '')
     .split(',')

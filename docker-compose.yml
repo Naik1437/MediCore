@@ -156,6 +156,7 @@ services:
       - "127.0.0.1:8088:8088"
     volumes:
       - ./docker/nginx-gateway.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/certs:/etc/nginx/certs:ro
     depends_on:
       - frontend
       - backend

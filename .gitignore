@@ -39,6 +39,7 @@ Thumbs.db
 # Docker
 .docker/
 docker-data/
+docker/certs/
 
 # Prisma
 backend/prisma/*.db
