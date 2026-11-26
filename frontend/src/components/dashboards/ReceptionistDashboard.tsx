@@ -80,7 +80,12 @@ export function ReceptionistDashboard() {
     mutationFn: (data: typeof newPatient) =>
       apiFetch('/patients', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          email: data.email.trim() || undefined,
+          bloodGroup: data.bloodGroup.trim() || undefined,
+          address: data.address.trim() || undefined,
+        }),
       }),
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['receptionist-patients'] });

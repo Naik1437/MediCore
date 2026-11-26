@@ -23,13 +23,30 @@ export default function LoginPage() {
   const { login } = useAuth();
 
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('Password123!');
+  const [password, setPassword] = useState(process.env.NODE_ENV === 'test' ? 'Password123!' : '');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPublicAccess, setIsPublicAccess] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isTunnelOrGateway =
+        window.location.port === '8088' ||
+        window.location.hostname.includes('trycloudflare.com') ||
+        window.location.hostname.includes('cloudflare');
+      if (isTunnelOrGateway) {
+        setIsPublicAccess(true);
+      }
+    }
+  }, []);
+
+  const isDevOrTest = process.env.NODE_ENV !== 'production' && !isPublicAccess;
 
   const selectDemoAccount = (accEmail: string) => {
     setEmail(accEmail);
-    setPassword('Password123!');
+    if (!isPublicAccess) {
+      setPassword('Password123!');
+    }
     setErrorMessage(null);
   };
 
@@ -141,7 +158,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {process.env.NODE_ENV !== 'production' && (
+        {isDevOrTest && (
           <div className="mt-8 pt-6 border-t border-slate-200">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 text-center">
               Development Quick Role Switcher

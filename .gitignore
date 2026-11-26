@@ -9,7 +9,10 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.seeded_accounts
 *.env
+.credentials*
+scripts/secure_seeded_accounts.sql
 
 # Build outputs
 dist/
@@ -36,6 +39,7 @@ Thumbs.db
 # Docker
 .docker/
 docker-data/
+docker/certs/
 
 # Prisma
 backend/prisma/*.db

@@ -21,6 +21,38 @@ if (isProd) {
   }
 }
 
+function parseCorsOrigin(val?: string) {
+  const defaultOrigins = [
+    'http://localhost:3002',
+    'http://localhost:8088',
+    'http://127.0.0.1:3002',
+    'http://127.0.0.1:8088',
+    'https://localhost:8088',
+    'https://127.0.0.1:8088',
+  ];
+  const configuredOrigins = (val || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const trustedOrigins = new Set([...defaultOrigins, ...configuredOrigins]);
+  const explicitTunnel = process.env.CLOUDFLARE_TUNNEL_ORIGIN?.trim();
+  if (explicitTunnel) {
+    trustedOrigins.add(explicitTunnel);
+  }
+
+  return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow non-browser requests (e.g. curl, internal proxy, same-origin without Origin header)
+    if (!origin) return callback(null, true);
+
+    if (trustedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  };
+}
+
 export const config = {
   env,
   port: parseInt(process.env.PORT || '4002', 10),
@@ -30,7 +62,7 @@ export const config = {
   jwtAccessExpiration: process.env.JWT_ACCESS_EXPIRATION || '15m',
   jwtRefreshExpiration: process.env.JWT_REFRESH_EXPIRATION || '7d',
   bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10),
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3002',
+  corsOrigin: parseCorsOrigin(process.env.CORS_ORIGIN || 'http://localhost:3002,http://localhost:8088'),
   databaseUrl,
   analyticsSharedSecret,
 };
