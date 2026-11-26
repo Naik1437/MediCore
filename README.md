@@ -277,6 +277,22 @@ docker compose ps
 | **Analytics Engine** | `8002` | [http://localhost:8002/docs](http://localhost:8002/docs) | FastAPI documentation & statistics |
 | **Notification DLQ** | `8002` | [http://localhost:8002/api/v1/notifications/dlq](http://localhost:8002/api/v1/notifications/dlq) | Dead-Letter Queue audit inspector |
 
+### Backup & Recovery
+
+Automated PostgreSQL backup and integrity-validated restore scripts are provided in `scripts/` (backups are stored locally in `backups/`, which is excluded from Git):
+
+```powershell
+# Windows (PowerShell)
+.\scripts\backup_db.ps1
+.\scripts\restore_db.ps1 -BackupFile .\backups\<backup_file>.sql
+```
+
+```bash
+# Linux / macOS
+./scripts/backup_db.sh
+./scripts/restore_db.sh backups/<backup_file>.sql
+```
+
 ---
 
 ## Running Test Suites Locally
@@ -367,5 +383,5 @@ MediCore/
 
 - **Notification Sandbox**: Notifications (SMS/Email) are processed through an internal Redis-backed sandbox queue and logged to the Dead-Letter Queue (DLQ) without calling external paid commercial gateways (Twilio/SendGrid).
 - **Pending Permanent Cloud Infrastructure**: Local multi-container Docker orchestration, Nginx reverse proxy configurations, and automated database backup/restore scripts are fully implemented and verified. Provisioning of a permanent cloud VM, DNS registrar domain records, and commercial CA-signed TLS certificates remains pending host infrastructure assignment.
-- **Pending Peer Review Approvals**: Local Git governance assets (CODEOWNERS, PR templates, migration checklists) are in place; live pull request approvals on remote GitHub remain pending repository push.
+- **Pending Peer Review Approvals**: Local Git governance assets (CODEOWNERS, PR templates, migration checklists) are in place. PR #1 (`feat/secure-deployment` -> `main`) has passed all 4/4 CI checks and is awaiting the 2 approving peer reviews required by branch protection.
 - **Synthetic Data Reminder**: All data utilized across appointments, encounters, diagnoses, and lab results is purely synthetic and intended strictly for educational evaluation.
